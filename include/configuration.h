@@ -1,0 +1,12 @@
+//
+// Created by chris on 2/22/25.
+//
+
+#ifndef CONFIGURATION_H
+#define CONFIGURATION_H
+
+#define WIFI_MGR_EEPROM_START_ADDR 512
+#define WIFI_MGR_EEPROM_SIZE 1024
+#define WIFI_MGR_DEBUG_SERIAL Serial
+
+#endif //CONFIGURATION_H
