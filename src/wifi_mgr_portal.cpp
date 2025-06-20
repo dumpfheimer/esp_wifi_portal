@@ -87,7 +87,7 @@ void wifiMgrPortalSendConfigure() {
 
     if (wifiMgrPortalWebServer->method() == HTTP_POST) {
         if (isWifi) {
-            ret += "Testing WiFi connection to " + wifiMgrGetConfig("SSID") + "</body></html>";
+            ret += "Testing WiFi connection to " + String(wifiMgrGetConfig("SSID")) + "</body></html>";
             wifiMgrPortalWebServer->send(200, "text/html", ret);
             delay(500);
             setupWifi(wifiMgrGetConfig("SSID"), wifiMgrGetConfig("WIFI_PW"));
