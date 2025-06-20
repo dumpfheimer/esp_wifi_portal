@@ -43,7 +43,7 @@ void delayAndLoop(unsigned long delayMS) {
     unsigned long start = millis();
     while (millis() - start < delayMS) {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
-        delay(1);
+        delay(10);
     }
 }
 

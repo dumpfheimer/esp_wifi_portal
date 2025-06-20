@@ -73,7 +73,7 @@ void wifiMgrPortalSendConfigure() {
             if (wifiMgrGetBoolConfig(tmp->eepromKey, false)) ret += " selected";
             ret += ">yes / on</option>";
             ret += "<option value=\"0\"";
-            if (wifiMgrGetBoolConfig(tmp->eepromKey, true) == false) ret += " selected";
+            if (!wifiMgrGetBoolConfig(tmp->eepromKey, true)) ret += " selected";
             ret += ">no / off</option>";
             ret += "</select>";
         }
@@ -87,7 +87,7 @@ void wifiMgrPortalSendConfigure() {
 
     if (wifiMgrPortalWebServer->method() == HTTP_POST) {
         if (isWifi) {
-            ret += "Testing WiFi</body></html>";
+            ret += "Testing WiFi connection to " + wifiMgrGetConfig("SSID") + "</body></html>";
             wifiMgrPortalWebServer->send(200, "text/html", ret);
             delay(500);
             setupWifi(wifiMgrGetConfig("SSID"), wifiMgrGetConfig("WIFI_PW"));
