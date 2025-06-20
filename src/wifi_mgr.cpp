@@ -39,6 +39,22 @@ boolean waitForWifi(unsigned long timeout) {
     return WiFi.isConnected();
 }
 
+void delayAndLoop(unsigned long delayMS) {
+    unsigned long start = millis();
+    while (millis() - start < delayMS) {
+        if (loopFunctionPointer != nullptr) loopFunctionPointer();
+        delay(1);
+    }
+}
+
+void waitForDisconnect(unsigned long timeout) {
+    unsigned long waitForConnectStart = millis();
+    while (WiFi.status() == WL_CONNECTED && (millis() - waitForConnectStart) < timeout) {
+        if (loopFunctionPointer != nullptr) loopFunctionPointer();
+        delay(10);
+    }
+}
+
 void connectToWifi() {
 
 #if defined(ESP8266)
@@ -48,6 +64,8 @@ void connectToWifi() {
 
     WiFi.scanDelete();
     WiFi.disconnect(true);
+    delayAndLoop(100);
+    waitForDisconnect(3000);
     WiFi.mode(WIFI_STA);
 
     wifiMgrScanCount++;
@@ -97,27 +115,29 @@ void connectToWifi() {
             if (!waitForWifi(wifiMgrWaitForConnectMs)) {
                 WiFi.disconnect(true);
                 WiFi.mode(WIFI_OFF);
-		        wifiMgrUnsuccessfullTries += 1;
-		        if (wifiMgrUnsuccessfullTries >= wifiMgrRebootAfterUnsuccessfullTries) {
-		            ESP.restart();
-		        }
+                delayAndLoop(100);
+                waitForDisconnect(3000);
+                wifiMgrUnsuccessfullTries += 1;
+                if (wifiMgrUnsuccessfullTries >= wifiMgrRebootAfterUnsuccessfullTries) {
+                    ESP.restart();
+                }
             } else {
-		        wifiMgrUnsuccessfullTries = 0;
-		        if (wifiMgrHN != nullptr) {
+                wifiMgrUnsuccessfullTries = 0;
+                if (wifiMgrHN != nullptr) {
 #if defined(ESP8266)
                     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
                     wifiMgrMdns.begin(wifiMgrHN, WiFi.localIP());
 #elif defined(ESP32)
-		            mdns_init();
+                    mdns_init();
 		            mdns_hostname_set(wifiMgrHN);
 #endif
-		        }
+                }
 #if defined(ESP32)
                 if (wifiMgrServer != nullptr) wifiMgrServer->begin();
 #endif
                 wifiMgrLastNonShitRSS = millis();
             }
-	    }
+        }
     }
 }
 
@@ -134,9 +154,9 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 }
 
 void onOTAEnd(bool success) {
-  if (success) {
-    ESP.restart();
-  }
+    if (success) {
+        ESP.restart();
+    }
 }
 
 void setupWifi(const char* SSID, const char* password, const char* hostname, unsigned long tolerateBadRSSms, unsigned long waitForConnectMs, unsigned long waitForScanMs, unsigned long rescanInterval) {
@@ -182,6 +202,8 @@ void loopWifi() {
                 if ((millis() - wifiMgrLastNonShitRSS) > wifiMgrTolerateBadRSSms) {
                     connectToWifi();
                 }
+            } else if (rss > 0) {
+                connectToWifi();
             } else {
                 wifiMgrLastNonShitRSS = millis();
             }
