@@ -232,7 +232,20 @@ void bssid() {
 }
 
 void status() {
-    String s = "ssid: " + WiFi.SSID() + "\nconnected: " + String(WiFi.isConnected()) + "\nbssid: " + WiFi.BSSIDstr() + "\nrssi: " + String(WiFi.RSSI()) + "\nuptime: " + String(millis()/1000) + "s\nlast scan: " + String((millis() - wifiMgrLastScan)/1000) + "s\nscanned: " + String(wifiMgrScanCount) + " times\nconnected: " + String(wifiMgrConnectCount) + " times";
+    String s = "ssid: " + WiFi.SSID() +
+            "\nconnected: " + String(WiFi.isConnected()) +
+            "\nbssid: " + WiFi.BSSIDstr() +
+            "\nrssi: " + String(WiFi.RSSI()) +
+            "\nuptime: " + String(millis()/1000) +
+            "s\nlast scan: " + String((millis() - wifiMgrLastScan)/1000) +
+            "s\nscanned: " + String(wifiMgrScanCount) +
+            " times\nconnected: " + String(wifiMgrConnectCount) +
+            " times\n" +
+            "\nfree heap: " + ESP.getFreeHeap()
+#if defined(ESP8266)
+            + "\nheap fragmentation" + ESP.getHeapFragmentation()
+#endif
+;
     wifiMgrServer->send(200, "text/plain", s);
 }
 
