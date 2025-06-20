@@ -1,6 +1,6 @@
 {
   "name": "WiFi Portal",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "WiFi management and hotspot configuration library",
   "keywords": "wifi, portal, setup",
   "repository":
@@ -17,6 +17,7 @@
   ],
   "license": "CC BY-NC 4.0",
   "dependencies": {
+    "ElegantOTA": "^2"
   },
   "frameworks": ["espidf", "arduino"],
   "platforms": ["espressif8266", "espressif32"]
