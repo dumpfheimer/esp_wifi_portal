@@ -15,6 +15,8 @@
 #define WIFI_MGR_EEPROM_VERSION_2 0x01
 
 bool initialized = false;
+int eepromStartAddress = 512;
+int eepromSize = 1024;
 
 struct CacheEntry {
     char* name = nullptr;
@@ -31,28 +33,34 @@ CacheEntry* nextEmptyCacheEntry() {
     return nullptr;
 }
 
+void wifiMgrConfigureEEPROM(int startAddress, int size) {
+    if (initialized) return;
+    eepromStartAddress = startAddress;
+    eepromSize = size;
+}
+
 void wifiMgrSetupEEPROM() {
     if (initialized) return;
-    EEPROM.begin(WIFI_MGR_EEPROM_SIZE);
+    EEPROM.begin(eepromSize);
 
     //EEPROM.r
-    uint8_t header1 = EEPROM.read(WIFI_MGR_EEPROM_START_ADDR + 0);
-    uint8_t header2 = EEPROM.read(WIFI_MGR_EEPROM_START_ADDR + 1);
-    uint8_t version1 = EEPROM.read(WIFI_MGR_EEPROM_START_ADDR + 2);
-    uint8_t version2 = EEPROM.read(WIFI_MGR_EEPROM_START_ADDR + 3);
-    uint8_t numberOfEntries = EEPROM.read(WIFI_MGR_EEPROM_START_ADDR + 4);
+    uint8_t header1 = EEPROM.read(eepromStartAddress + 0);
+    uint8_t header2 = EEPROM.read(eepromStartAddress + 1);
+    uint8_t version1 = EEPROM.read(eepromStartAddress + 2);
+    uint8_t version2 = EEPROM.read(eepromStartAddress + 3);
+    uint8_t numberOfEntries = EEPROM.read(eepromStartAddress + 4);
 
     if (header1 != 0x43 || header2 != 0x96 || version1 != 0x00 || version2 != 0x01) {
         // not initialized
-        EEPROM.write(WIFI_MGR_EEPROM_START_ADDR + 0, WIFI_MGR_EEPROM_HEADER_1);
-        EEPROM.write(WIFI_MGR_EEPROM_START_ADDR + 1, WIFI_MGR_EEPROM_HEADER_2);
-        EEPROM.write(WIFI_MGR_EEPROM_START_ADDR + 2, WIFI_MGR_EEPROM_VERSION_1);
-        EEPROM.write(WIFI_MGR_EEPROM_START_ADDR + 3, WIFI_MGR_EEPROM_VERSION_2);
-        EEPROM.write(WIFI_MGR_EEPROM_START_ADDR + 4, 0x00);
+        EEPROM.write(eepromStartAddress + 0, WIFI_MGR_EEPROM_HEADER_1);
+        EEPROM.write(eepromStartAddress + 1, WIFI_MGR_EEPROM_HEADER_2);
+        EEPROM.write(eepromStartAddress + 2, WIFI_MGR_EEPROM_VERSION_1);
+        EEPROM.write(eepromStartAddress + 3, WIFI_MGR_EEPROM_VERSION_2);
+        EEPROM.write(eepromStartAddress + 4, 0x00);
         numberOfEntries = 0;
     }
 
-    uint16_t eepromPtr = WIFI_MGR_EEPROM_START_ADDR + 5;
+    uint16_t eepromPtr = eepromStartAddress + 5;
     for (int i = 0; i < numberOfEntries; i++) {
         uint8_t entryNameLength = EEPROM.read(eepromPtr);
         uint8_t entryValueLength = EEPROM.read(eepromPtr + 1 + entryNameLength);
@@ -88,11 +96,11 @@ CacheEntry* getCacheEntryByName(const char* name) {
 }
 bool wifiMgrCommitEEPROM() {
     wifiMgrSetupEEPROM();
-    EEPROM.write(WIFI_MGR_EEPROM_START_ADDR + 0, WIFI_MGR_EEPROM_HEADER_1);
-    EEPROM.write(WIFI_MGR_EEPROM_START_ADDR + 1, WIFI_MGR_EEPROM_HEADER_2);
-    EEPROM.write(WIFI_MGR_EEPROM_START_ADDR + 2, WIFI_MGR_EEPROM_VERSION_1);
-    EEPROM.write(WIFI_MGR_EEPROM_START_ADDR + 3, WIFI_MGR_EEPROM_VERSION_2);
-    uint16_t eepromPtr = WIFI_MGR_EEPROM_START_ADDR + 5;
+    EEPROM.write(eepromStartAddress + 0, WIFI_MGR_EEPROM_HEADER_1);
+    EEPROM.write(eepromStartAddress + 1, WIFI_MGR_EEPROM_HEADER_2);
+    EEPROM.write(eepromStartAddress + 2, WIFI_MGR_EEPROM_VERSION_1);
+    EEPROM.write(eepromStartAddress + 3, WIFI_MGR_EEPROM_VERSION_2);
+    uint16_t eepromPtr = eepromStartAddress + 5;
     uint8_t count = 0;
     for (int i = 0; i < WIFI_MGR_MAX_CONFIG_ENTRIES; i++) {
         CacheEntry cacheEntry = cache[i];
@@ -108,7 +116,7 @@ bool wifiMgrCommitEEPROM() {
             count++;
         }
     }
-    EEPROM.write(WIFI_MGR_EEPROM_START_ADDR + 4, count);
+    EEPROM.write(eepromStartAddress + 4, count);
     return EEPROM.commit();
 }
 void wifiMgrClearEEPROM() {

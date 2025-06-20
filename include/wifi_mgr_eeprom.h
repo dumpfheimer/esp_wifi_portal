@@ -13,6 +13,7 @@
 
 #include <EEPROM.h>
 
+void wifiMgrConfigureEEPROM(int startAddress, int size);
 bool wifiMgrCommitEEPROM();
 void wifiMgrClearEEPROM();
 const char* wifiMgrGetConfig(const char* name);
