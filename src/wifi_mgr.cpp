@@ -23,14 +23,14 @@ uint8_t wifiMgrRebootAfterUnsuccessfullTries = 0;
 uint8_t wifiMgrUnsuccessfullTries = 0;
 
 int8_t badRSS = -70;
-const char* wifiMgrSSID;
-const char* wifiMgrPW;
-const char* wifiMgrHN;
+const char* wifiMgrSSID = nullptr;
+const char* wifiMgrPW = nullptr;
+const char* wifiMgrHN = nullptr;
 
 void (*loopFunctionPointer)(void) = nullptr;
 void (*wifiMgrNotifyNoWifiCallback)(void) = nullptr;
 
-XWebServer *wifiMgrServer;
+XWebServer *wifiMgrServer = nullptr;
 
 boolean waitForWifi(unsigned long timeout) {
     unsigned long waitForConnectStart = millis();
@@ -62,6 +62,7 @@ void connectToWifi() {
 #if defined(ESP8266)
     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
 #elif defined(ESP32)
+    mdns_free();
 #endif
 
     WiFi.scanDelete();
@@ -90,7 +91,7 @@ void connectToWifi() {
         int32_t channel;
         bool isHidden;
 
-        uint8_t *bestBSSID = nullptr;
+        uint8_t bestBSSID[6];
         int32_t bestRSSI = -999;
         int32_t bestChannel = 0;
 
@@ -104,14 +105,14 @@ void connectToWifi() {
 
             if (!isHidden && ssid.equals(wifiMgrSSID) && RSSI > bestRSSI) {
                 bestRSSI = RSSI;
-                bestBSSID = BSSID;
+                memcpy(bestBSSID, BSSID, 6);
                 bestChannel = channel;
             }
         }
 
         wifiMgrLastScan = millis();
 
-        if (bestBSSID != nullptr) {
+        if (bestRSSI != -999) {
             WiFi.begin(wifiMgrSSID, wifiMgrPW, bestChannel, bestBSSID);
             wifiMgrConnectCount++;
             if (!waitForWifi(wifiMgrWaitForConnectMs)) {
@@ -125,13 +126,13 @@ void connectToWifi() {
                 }
             } else {
                 wifiMgrUnsuccessfullTries = 0;
-                if (wifiMgrHN != nullptr) {
+                if (wifiMgrHN != nullptr && strlen(wifiMgrHN) > 0) {
 #if defined(ESP8266)
                     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
                     wifiMgrMdns.begin(wifiMgrHN, WiFi.localIP());
 #elif defined(ESP32)
                     mdns_init();
-		            mdns_hostname_set(wifiMgrHN);
+                    mdns_hostname_set(wifiMgrHN);
 #endif
                 }
                 if (wifiMgrServer != nullptr) wifiMgrServer->begin();
@@ -176,9 +177,14 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 #endif
 
 
-    wifiMgrSSID = strdup(SSID);
-    wifiMgrPW = strdup(password);
-    wifiMgrHN = strdup(hostname);
+    // Free previous values if they exist to prevent memory leaks
+    if (wifiMgrSSID != nullptr) free((void*)wifiMgrSSID);
+    if (wifiMgrPW != nullptr) free((void*)wifiMgrPW);
+    if (wifiMgrHN != nullptr) free((void*)wifiMgrHN);
+
+    wifiMgrSSID = SSID ? strdup(SSID) : nullptr;
+    wifiMgrPW = password ? strdup(password) : nullptr;
+    wifiMgrHN = hostname ? strdup(hostname) : nullptr;
     wifiMgrTolerateBadRSSms = tolerateBadRSSms;
     wifiMgrWaitForConnectMs = waitForConnectMs;
     wifiMgrWaitForScanMs = waitForScanMs;
@@ -268,14 +274,16 @@ void restart() {
 
 void wifiMgrExpose(XWebServer *wifiMgrServer_) {
     wifiMgrServer = wifiMgrServer_;
-    wifiMgrServer->on("/wifiMgr/rssi", sendRSSI);
-    wifiMgrServer->on("/wifiMgr/isConnected", isConnected);
-    wifiMgrServer->on("/wifiMgr/ssid", ssid);
-    wifiMgrServer->on("/wifiMgr/bssid", bssid);
-    wifiMgrServer->on("/wifiMgr/status", status);
-    wifiMgrServer->on("/wifiMgr/restart", restart);
+    if (wifiMgrServer != nullptr) {
+        wifiMgrServer->on("/wifiMgr/rssi", sendRSSI);
+        wifiMgrServer->on("/wifiMgr/isConnected", isConnected);
+        wifiMgrServer->on("/wifiMgr/ssid", ssid);
+        wifiMgrServer->on("/wifiMgr/bssid", bssid);
+        wifiMgrServer->on("/wifiMgr/status", status);
+        wifiMgrServer->on("/wifiMgr/restart", restart);
 
-    ElegantOTA.begin(wifiMgrServer);
+        ElegantOTA.begin(wifiMgrServer);
+    }
 }
 
 XWebServer* wifiMgrGetWebServer() {
