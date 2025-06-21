@@ -135,7 +135,7 @@ void connectToWifi() {
                     mdns_hostname_set(wifiMgrHN);
 #endif
                 }
-                //if (wifiMgrServer != nullptr) wifiMgrServer->begin();
+                if (wifiMgrServer != nullptr) wifiMgrServer->begin();
                 wifiMgrLastNonShitRSS = millis();
                 wifiMgrInvalidRSSISince = 0;
             }
