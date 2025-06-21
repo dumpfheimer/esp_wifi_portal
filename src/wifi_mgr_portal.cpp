@@ -89,7 +89,8 @@ void wifiMgrPortalSendConfigure() {
         if (isWifi) {
             ret += "Testing WiFi connection to " + String(wifiMgrGetConfig("SSID")) + "</body></html>";
             wifiMgrPortalWebServer->send(200, "text/html", ret);
-            delay(500);
+            unsigned long start = millis();
+            while (millis() - start < 500) yield();
             setupWifi(wifiMgrGetConfig("SSID"), wifiMgrGetConfig("WIFI_PW"));
             if (WiFi.isConnected()) {
                 if (!wifiMgrCommitEEPROM()) {
@@ -114,7 +115,8 @@ void wifiMgrPortalSendConfigure() {
             }
         }
         if (needRestart) {
-            delay(1000);
+            unsigned long start = millis();
+            while (millis() - start < 1000) yield();
             ESP.restart();
         }
     } else {

@@ -34,7 +34,7 @@ boolean waitForWifi(unsigned long timeout) {
     unsigned long waitForConnectStart = millis();
     while (!WiFi.isConnected() && (millis() - waitForConnectStart) < timeout) {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
-        delay(10);
+        yield();
     }
     return WiFi.isConnected();
 }
@@ -43,7 +43,7 @@ void delayAndLoop(unsigned long delayMS) {
     unsigned long start = millis();
     while (millis() - start < delayMS) {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
-        delay(10);
+        yield();
     }
 }
 
@@ -51,7 +51,7 @@ void waitForDisconnect(unsigned long timeout) {
     unsigned long waitForConnectStart = millis();
     while (WiFi.status() == WL_CONNECTED && (millis() - waitForConnectStart) < timeout) {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
-        delay(10);
+        yield();
     }
 }
 
@@ -76,7 +76,7 @@ void connectToWifi() {
 
     while (WiFi.scanComplete() < 0 && (millis() - waitForScanStart) < wifiMgrWaitForScanMs) {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
-        delay(10);
+        yield();
     }
     n = WiFi.scanComplete();
 
@@ -249,7 +249,8 @@ void status() {
 
 void restart() {
     wifiMgrServer->send(200, "text/plain", "restarting");
-    delay(500);
+    unsigned long start = millis();
+    while (millis() - start < 500) yield();
     ESP.restart();
 }
 
