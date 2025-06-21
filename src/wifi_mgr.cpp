@@ -59,6 +59,7 @@ void connectToWifi() {
 
 #if defined(ESP8266)
     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
+    if (wifiMgrServer != NULL) wifiMgrServer.stop();
 #elif defined(ESP32)
 #endif
 
