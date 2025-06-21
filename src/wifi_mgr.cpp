@@ -9,6 +9,8 @@ MDNSResponder wifiMgrMdns;
 
 unsigned long wifiMgrLastNonShitRSS = 0;
 unsigned long wifiMgrlastConnected = 0;
+unsigned long wifiMgrInvalidRSSISince = 0;
+unsigned long wifiMgrInvalidRSSITimeout = 0;
 unsigned long wifiMgrNotifyNoWifiTimeout = 600 * 1000; // 10m
 unsigned long wifiMgrTolerateBadRSSms = 300 * 1000; // 5m
 unsigned long wifiMgrRescanInterval = 3600 * 1000; // 1h
@@ -56,7 +58,7 @@ void waitForDisconnect(unsigned long timeout) {
 }
 
 void connectToWifi() {
-    if (wifiMgrServer != NULL) wifiMgrServer->stop();
+    if (wifiMgrServer != nullptr) wifiMgrServer->stop();
 #if defined(ESP8266)
     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
 #elif defined(ESP32)
@@ -134,9 +136,11 @@ void connectToWifi() {
                 }
                 if (wifiMgrServer != nullptr) wifiMgrServer->begin();
                 wifiMgrLastNonShitRSS = millis();
+                wifiMgrInvalidRSSISince = 0;
             }
         }
     }
+    WiFi.scanDelete();
 }
 
 void setupWifi(const char* SSID, const char* password) {
@@ -172,9 +176,9 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 #endif
 
 
-    wifiMgrSSID = SSID;
-    wifiMgrPW = password;
-    wifiMgrHN = hostname;
+    wifiMgrSSID = strdup(SSID);
+    wifiMgrPW = strdup(password);
+    wifiMgrHN = strdup(hostname);
     wifiMgrTolerateBadRSSms = tolerateBadRSSms;
     wifiMgrWaitForConnectMs = waitForConnectMs;
     wifiMgrWaitForScanMs = waitForScanMs;
@@ -197,12 +201,20 @@ void loopWifi() {
             int8_t rss = WiFi.RSSI();
 
             if (rss < badRSS) {
+                wifiMgrInvalidRSSISince = 0;
                 if ((millis() - wifiMgrLastNonShitRSS) > wifiMgrTolerateBadRSSms) {
                     connectToWifi();
                 }
             } else if (rss > 0) {
-                connectToWifi();
+                if (wifiMgrInvalidRSSISince == 0) {
+                    wifiMgrInvalidRSSISince = millis();
+                } else {
+                    if (millis() - wifiMgrInvalidRSSISince > wifiMgrTolerateBadRSSms) {
+                        connectToWifi();
+                    }
+                }
             } else {
+                wifiMgrInvalidRSSISince = 0;
                 wifiMgrLastNonShitRSS = millis();
             }
 
