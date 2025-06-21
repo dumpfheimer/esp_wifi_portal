@@ -58,7 +58,7 @@ void waitForDisconnect(unsigned long timeout) {
 }
 
 void connectToWifi() {
-    if (wifiMgrServer != nullptr) wifiMgrServer->stop();
+    //if (wifiMgrServer != nullptr) wifiMgrServer->stop();
 #if defined(ESP8266)
     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
 #elif defined(ESP32)
@@ -135,7 +135,7 @@ void connectToWifi() {
                     mdns_hostname_set(wifiMgrHN);
 #endif
                 }
-                if (wifiMgrServer != nullptr) wifiMgrServer->begin();
+                //if (wifiMgrServer != nullptr) wifiMgrServer->begin();
                 wifiMgrLastNonShitRSS = millis();
                 wifiMgrInvalidRSSISince = 0;
             }
