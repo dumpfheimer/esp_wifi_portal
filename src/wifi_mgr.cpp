@@ -264,7 +264,7 @@ void status() {
             " times\n" +
             "\nfree heap: " + ESP.getFreeHeap()
 #if defined(ESP8266)
-            + "\nheap fragmentation" + ESP.getHeapFragmentation()
+            + "\nheap fragmentation: " + ESP.getHeapFragmentation()
 #endif
 ;
     wifiMgrServer->send(200, "text/plain", s);
@@ -277,6 +277,13 @@ void restart() {
     ESP.restart();
 }
 
+void reconnect() {
+    wifiMgrServer->send(200, "text/plain", "reconnecting");
+    unsigned long start = millis();
+    while (millis() - start < 500) yield();
+    connectToWifi();
+}
+
 void wifiMgrExpose(XWebServer *wifiMgrServer_) {
     wifiMgrServer = wifiMgrServer_;
     if (wifiMgrServer != nullptr) {
@@ -286,6 +293,7 @@ void wifiMgrExpose(XWebServer *wifiMgrServer_) {
         wifiMgrServer->on("/wifiMgr/bssid", bssid);
         wifiMgrServer->on("/wifiMgr/status", status);
         wifiMgrServer->on("/wifiMgr/restart", restart);
+        wifiMgrServer->on("/wifiMgr/reconnect", reconnect);
 
         ElegantOTA.begin(wifiMgrServer);
     }
