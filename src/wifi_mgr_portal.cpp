@@ -183,7 +183,6 @@ void wifiMgrPortalAddConfigEntry(const char* name, const char* eepromKey, Portal
 }
 
 bool wifiMgrPortalLoop() {
-    wifiMgrPortalWebServer->getServer().status()
     if (wifiMgrPortalIsSetup) {
         loopWifi();
         if (wifiMgrPortalWebServer != nullptr) wifiMgrPortalWebServer->handleClient();
