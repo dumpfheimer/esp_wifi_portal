@@ -152,7 +152,7 @@ void wifiMgrPortalSetup(bool redirectIndex, const char* ssidPrefix_, const char*
         }
         else setupWifi(ssid, pw, host);
 
-        if (wifiMgrPortalWebServer != nullptr) wifiMgrPortalWebServer->begin();
+        if (wifiMgrPortalWebServer != nullptr && wifiMgrPortalWebServer->getServer().status() == 0) wifiMgrPortalWebServer->begin();
         wifiMgrPortalIsSetup = true;
     }
     wifiMgrPortalWebServer = wifiMgrGetWebServer();
@@ -183,6 +183,7 @@ void wifiMgrPortalAddConfigEntry(const char* name, const char* eepromKey, Portal
 }
 
 bool wifiMgrPortalLoop() {
+    wifiMgrPortalWebServer->getServer().status()
     if (wifiMgrPortalIsSetup) {
         loopWifi();
         if (wifiMgrPortalWebServer != nullptr) wifiMgrPortalWebServer->handleClient();
@@ -193,7 +194,7 @@ bool wifiMgrPortalLoop() {
         macAddress = macAddress.substring(6, macAddress.length());
         WiFi.softAP(ssidPrefix + macAddress, password);
 
-        if (wifiMgrPortalWebServer != nullptr) wifiMgrPortalWebServer->begin();
+        if (wifiMgrPortalWebServer != nullptr && wifiMgrPortalWebServer->getServer().status() == 0) wifiMgrPortalWebServer->begin();
 
         wifiMgrPortalStarted = true;
     } else {

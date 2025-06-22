@@ -10,7 +10,7 @@ MDNSResponder wifiMgrMdns;
 unsigned long wifiMgrLastNonShitRSS = 0;
 unsigned long wifiMgrlastConnected = 0;
 unsigned long wifiMgrInvalidRSSISince = 0;
-unsigned long wifiMgrInvalidRSSITimeout = 0;
+unsigned long wifiMgrInvalidRSSITimeout = 30 * 1000;
 unsigned long wifiMgrNotifyNoWifiTimeout = 600 * 1000; // 10m
 unsigned long wifiMgrTolerateBadRSSms = 300 * 1000; // 5m
 unsigned long wifiMgrRescanInterval = 3600 * 1000; // 1h
@@ -59,11 +59,14 @@ void waitForDisconnect(unsigned long timeout) {
 
 void connectToWifi() {
     //if (wifiMgrServer != nullptr) wifiMgrServer->stop();
+    //if (wifiMgrServer != nullptr) wifiMgrServer->close();
 #if defined(ESP8266)
     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
 #elif defined(ESP32)
     mdns_free();
 #endif
+
+    delayAndLoop(100);
 
     WiFi.scanDelete();
     WiFi.disconnect(true);
@@ -135,7 +138,8 @@ void connectToWifi() {
                     mdns_hostname_set(wifiMgrHN);
 #endif
                 }
-                if (wifiMgrServer != nullptr) wifiMgrServer->begin();
+                // status 0 means the server is closed - so not running (I think)
+                if (wifiMgrServer != nullptr && wifiMgrServer->getServer().status() == 0) wifiMgrServer->begin();
                 wifiMgrLastNonShitRSS = millis();
                 wifiMgrInvalidRSSISince = 0;
             }
@@ -215,7 +219,7 @@ void loopWifi() {
                 if (wifiMgrInvalidRSSISince == 0) {
                     wifiMgrInvalidRSSISince = millis();
                 } else {
-                    if (millis() - wifiMgrInvalidRSSISince > wifiMgrTolerateBadRSSms) {
+                    if (millis() - wifiMgrInvalidRSSISince > wifiMgrInvalidRSSITimeout) {
                         connectToWifi();
                     }
                 }
@@ -229,6 +233,7 @@ void loopWifi() {
             }
         }
     }
+    yield();
 }
 
 void sendRSSI() {
