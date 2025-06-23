@@ -130,8 +130,10 @@ void connectToWifi() {
                     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
                     wifiMgrMdns.begin(wifiMgrHN, WiFi.localIP());
 #elif defined(ESP32)
-                    mdns_init();
-                    mdns_hostname_set(wifiMgrHN);
+                    esp_err_t err = mdns_init();
+                    if (err == ESP_OK) {
+                        mdns_hostname_set(wifiMgrHN);
+                    }
 #endif
                 }
                 // status 0 means the server is closed - so not running (I think)
@@ -178,13 +180,22 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 
 
     // Free previous values if they exist to prevent memory leaks
-    if (wifiMgrSSID != nullptr) free((void*)wifiMgrSSID);
-    if (wifiMgrPW != nullptr) free((void*)wifiMgrPW);
-    if (wifiMgrHN != nullptr) free((void*)wifiMgrHN);
+    if (wifiMgrSSID != nullptr) {
+        free((void*)wifiMgrSSID);
+        wifiMgrSSID = nullptr;
+    }
+    if (wifiMgrPW != nullptr) {
+        free((void*)wifiMgrPW);
+        wifiMgrPW = nullptr;
+    }
+    if (wifiMgrHN != nullptr) {
+        free((void*)wifiMgrHN);
+        wifiMgrHN = nullptr;
+    }
 
-    wifiMgrSSID = SSID ? strdup(SSID) : nullptr;
-    wifiMgrPW = password ? strdup(password) : nullptr;
-    wifiMgrHN = hostname ? strdup(hostname) : nullptr;
+    wifiMgrSSID = SSID && strlen(SSID) > 0 ? strdup(SSID) : nullptr;
+    wifiMgrPW = password && strlen(password) > 0 ? strdup(password) : nullptr;
+    wifiMgrHN = hostname && strlen(hostname) > 0 ? strdup(hostname) : nullptr;
     wifiMgrTolerateBadRSSms = tolerateBadRSSms;
     wifiMgrWaitForConnectMs = waitForConnectMs;
     wifiMgrWaitForScanMs = waitForScanMs;

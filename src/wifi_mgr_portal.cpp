@@ -34,7 +34,7 @@ void wifiMgrPortalSendConfigure() {
                 // config item is in post
                 if ((currentVal == nullptr || strcmp(val.c_str(), currentVal)) && (!tmp->isPassword || !wifiMgrPortalWebServer->arg(tmp->eepromKey).isEmpty())) {
                     // value changed
-                    if (strcmp(tmp->eepromKey, "SSID") == 0 || strcmp(tmp->eepromKey, "PW") == 0 || strcmp(tmp->eepromKey, "HOST") == 0) {
+                    if (strcmp(tmp->eepromKey, "SSID") == 0 || strcmp(tmp->eepromKey, "WIFI_PW") == 0 || strcmp(tmp->eepromKey, "HOST") == 0) {
                         isWifi = true;
                     }
                     if (tmp->restartOnChange) needRestart = true;
@@ -138,17 +138,11 @@ void wifiMgrPortalSetup(bool redirectIndex, const char* ssidPrefix_, const char*
         // configured
         const char* host = wifiMgrGetConfig("HOST");
         if (host == nullptr || strlen(host) == 0) {
-#ifdef WIFI_MGR_HOSTNAME
-            setupWifi(ssid, pw, WIFI_MGR_HOSTNAME);
-#elifdef WIFI_MGR_HOSTNAME_PREFIX
-            setupWifi(ssid, pw, WIFI_MGR_HOSTNAME_PREFIX + "-" + WiFi.macAddress());
-#else
             String macAddress = WiFi.macAddress();
             macAddress.replace(":", "");
             macAddress = macAddress.substring(6, macAddress.length());
 
-            setupWifi(ssid, pw, (ssidPrefix + macAddress).c_str());
-#endif
+            setupWifi(ssid, pw, (String(ssidPrefix) + macAddress).c_str());
         }
         else setupWifi(ssid, pw, host);
 
@@ -191,7 +185,7 @@ bool wifiMgrPortalLoop() {
         String macAddress = WiFi.macAddress();
         macAddress.replace(":", "");
         macAddress = macAddress.substring(6, macAddress.length());
-        WiFi.softAP(ssidPrefix + macAddress, password);
+        WiFi.softAP((String(ssidPrefix) + macAddress).c_str(), password);
 
         if (wifiMgrPortalWebServer != nullptr && wifiMgrPortalWebServer->getServer().status() == 0) wifiMgrPortalWebServer->begin();
 

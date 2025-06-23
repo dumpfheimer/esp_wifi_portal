@@ -39,8 +39,8 @@ void wifiMgrConfigureEEPROM(int startAddress, int size) {
     eepromSize = size;
 }
 
-void wifiMgrSetupEEPROM() {
-    if (initialized) return;
+bool wifiMgrSetupEEPROM() {
+    if (initialized) return true;
     EEPROM.begin(eepromSize);
 
     //EEPROM.r
@@ -82,14 +82,15 @@ void wifiMgrSetupEEPROM() {
             }
         }
         eepromPtr += 2 + entryNameLength + entryValueLength;
-        if (eepromPtr + 2 + entryNameLength + entryValueLength > eepromSize) {
-            return false;  // Or handle error appropriately
+        if (eepromPtr >= eepromStartAddress + eepromSize) {
+            return false;  // EEPROM space exceeded
         }
     }
     initialized = true;
+    return true;
 }
 CacheEntry* getCacheEntryByName(const char* name) {
-    wifiMgrSetupEEPROM();
+    if(!wifiMgrSetupEEPROM()) return nullptr;
     for (int i = 0; i < WIFI_MGR_MAX_CONFIG_ENTRIES; i++) {
         if (cache[i].name != nullptr && strcmp(name, cache[i].name) == 0) {
             return &cache[i];
@@ -123,7 +124,7 @@ bool wifiMgrCommitEEPROM() {
     return EEPROM.commit();
 }
 void wifiMgrClearEEPROM() {
-    wifiMgrSetupEEPROM();
+    if(!wifiMgrSetupEEPROM()) return;
     for (int i = 0; i < WIFI_MGR_MAX_CONFIG_ENTRIES; i++) {
         if (cache[i].name != nullptr) {
             delete[] cache[i].name;
@@ -136,15 +137,16 @@ void wifiMgrClearEEPROM() {
         }
         cache[i].valueLen = 0;
     }
+    initialized = false;
 }
 const char* wifiMgrGetConfig(const char* name) {
-    wifiMgrSetupEEPROM();
+    if(!wifiMgrSetupEEPROM()) return nullptr;
     CacheEntry* cacheEntry = getCacheEntryByName(name);
     if (cacheEntry == nullptr) return nullptr;
     else return cacheEntry->value;
 }
 bool wifiMgrSetConfig(const char* name, const char* value) {
-    wifiMgrSetupEEPROM();
+    if(!wifiMgrSetupEEPROM()) return false;
     CacheEntry* cacheEntry = getCacheEntryByName(name);
 
     if (cacheEntry == nullptr) {
@@ -159,17 +161,17 @@ bool wifiMgrSetConfig(const char* name, const char* value) {
         cacheEntry->nameLen = len;
     }
 
-
     if (cacheEntry->value != nullptr) delete[] cacheEntry->value;
     size_t len = strlen(value);
     cacheEntry->value = new char[len + 1];
     if (cacheEntry->value == nullptr) return false;
     strncpy(cacheEntry->value, value, len);
+    cacheEntry->value[len] = '\0';  // Ensure null termination
     cacheEntry->valueLen = len;
     return true;
 }
 bool wifiMgrSetConfig(const char* name, const char* value, uint8_t len) {
-    wifiMgrSetupEEPROM();
+    if(!wifiMgrSetupEEPROM()) return false;
     CacheEntry* cacheEntry = getCacheEntryByName(name);
 
     if (cacheEntry == nullptr) {
@@ -180,15 +182,17 @@ bool wifiMgrSetConfig(const char* name, const char* value, uint8_t len) {
         cacheEntry->name = new char[nameLen + 1];
         if (cacheEntry->name == nullptr) return false;
         strncpy(cacheEntry->name, name, nameLen);
+        cacheEntry->name[nameLen] = '\0';  // Ensure null termination
         cacheEntry->nameLen = nameLen;
     }
 
     if (cacheEntry->value != nullptr) delete[] cacheEntry->value;
-    cacheEntry->value = new char[len];
+    cacheEntry->value = new char[len + 1];
     if (cacheEntry->value == nullptr) return false;
     for (uint16_t wi = 0; wi < len; wi++) {
         cacheEntry->value[wi] = (char) value[wi];
     }
+    cacheEntry->value[len] = '\0';  // Ensure null termination
     cacheEntry->valueLen = len;
     return true;
 }
