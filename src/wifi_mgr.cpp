@@ -23,6 +23,7 @@ unsigned long wifiMgrScanCount = 0;
 unsigned long wifiMgrConnectCount = 0;
 unsigned long wifiMgrInvalidRSSICount = 0;
 unsigned long wifiMgrInvalidIPCount = 0;
+unsigned long wifiMgrPostStartedServerCount = 0;
 uint8_t wifiMgrRebootAfterUnsuccessfullTries = 0;
 uint8_t wifiMgrUnsuccessfullTries = 0;
 
@@ -249,6 +250,10 @@ void loopWifi() {
             } else {
                 wifiMgrInvalidIPSince = 0;
             }
+            if (wifiMgrServer != nullptr && wifiMgrServer->getServer().status() == 0) {
+                wifiMgrPostStartedServerCount++;
+                wifiMgrServer->begin();
+            }
 
             if (wifiMgrRescanInterval > 0 && (millis() - wifiMgrLastScan) > wifiMgrRescanInterval) {
                 connectToWifi();
@@ -287,6 +292,7 @@ void status() {
             "\nfree heap: " + ESP.getFreeHeap() +
             "\nreconnects invalid IP: " + wifiMgrInvalidIPCount +
             "\nreconnects invalid RSSI: " + wifiMgrInvalidRSSICount +
+            "\nserver restarts (post): " + wifiMgrPostStartedServerCount
 #if defined(ESP8266)
             + "\nheap fragmentation: " + ESP.getHeapFragmentation()
 #endif
