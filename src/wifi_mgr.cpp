@@ -86,7 +86,6 @@ void connectToWifi() {
         yield();
     }
     n = WiFi.scanComplete();
-    WiFi.scanDelete();
 
     if (n > 0) {
         String ssid;
@@ -114,6 +113,7 @@ void connectToWifi() {
                 bestChannel = channel;
             }
         }
+        WiFi.scanDelete();
 
         wifiMgrLastScan = millis();
 
