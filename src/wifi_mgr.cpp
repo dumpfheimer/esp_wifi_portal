@@ -11,6 +11,8 @@ unsigned long wifiMgrLastNonShitRSS = 0;
 unsigned long wifiMgrlastConnected = 0;
 unsigned long wifiMgrInvalidRSSISince = 0;
 unsigned long wifiMgrInvalidRSSITimeout = 30 * 1000;
+unsigned long wifiMgrInvalidIPSince = 0;
+unsigned long wifiMgrInvalidIPTimeout = 10 * 1000;
 unsigned long wifiMgrNotifyNoWifiTimeout = 600 * 1000; // 10m
 unsigned long wifiMgrTolerateBadRSSms = 300 * 1000; // 5m
 unsigned long wifiMgrRescanInterval = 3600 * 1000; // 1h
@@ -19,6 +21,8 @@ unsigned long wifiMgrWaitForConnectMs = 30000; // 30s
 unsigned long wifiMgrWaitForScanMs = 30000; // 30s
 unsigned long wifiMgrScanCount = 0;
 unsigned long wifiMgrConnectCount = 0;
+unsigned long wifiMgrInvalidRSSICount = 0;
+unsigned long wifiMgrInvalidIPCount = 0;
 uint8_t wifiMgrRebootAfterUnsuccessfullTries = 0;
 uint8_t wifiMgrUnsuccessfullTries = 0;
 
@@ -114,8 +118,9 @@ void connectToWifi() {
 
         if (bestRSSI != -999) {
             WiFi.begin(wifiMgrSSID, wifiMgrPW, bestChannel, bestBSSID);
+            uint8_t status = WiFi.waitForConnectResult();
             wifiMgrConnectCount++;
-            if (!waitForWifi(wifiMgrWaitForConnectMs)) {
+            if (status != WL_CONNECTED) {
                 WiFi.disconnect(true);
                 WiFi.mode(WIFI_OFF);
                 waitForDisconnect(3000);
@@ -140,6 +145,7 @@ void connectToWifi() {
                 if (wifiMgrServer != nullptr && wifiMgrServer->getServer().status() == 0) wifiMgrServer->begin();
                 wifiMgrLastNonShitRSS = millis();
                 wifiMgrInvalidRSSISince = 0;
+                wifiMgrInvalidIPSince = 0;
             }
         }
     }
@@ -193,9 +199,9 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
         wifiMgrHN = nullptr;
     }
 
-    wifiMgrSSID = SSID && strlen(SSID) > 0 ? strdup(SSID) : nullptr;
-    wifiMgrPW = password && strlen(password) > 0 ? strdup(password) : nullptr;
-    wifiMgrHN = hostname && strlen(hostname) > 0 ? strdup(hostname) : nullptr;
+    wifiMgrSSID = (SSID != nullptr && strlen(SSID) > 0) ? strdup(SSID) : nullptr;
+    wifiMgrPW = (password != nullptr && strlen(password) > 0) ? strdup(password) : nullptr;
+    wifiMgrHN = (hostname != nullptr && strlen(hostname) > 0) ? strdup(hostname) : nullptr;
     wifiMgrTolerateBadRSSms = tolerateBadRSSms;
     wifiMgrWaitForConnectMs = waitForConnectMs;
     wifiMgrWaitForScanMs = waitForScanMs;
@@ -222,17 +228,26 @@ void loopWifi() {
                 if ((millis() - wifiMgrLastNonShitRSS) > wifiMgrTolerateBadRSSms) {
                     connectToWifi();
                 }
-            } /*else if (rss > 0) {
+            } else if (rss > 0) {
                 if (wifiMgrInvalidRSSISince == 0) {
                     wifiMgrInvalidRSSISince = millis();
                 } else {
                     if (millis() - wifiMgrInvalidRSSISince > wifiMgrInvalidRSSITimeout) {
+                        wifiMgrInvalidRSSICount++;
                         connectToWifi();
                     }
                 }
-            } */else {
+            } else {
                 wifiMgrInvalidRSSISince = 0;
                 wifiMgrLastNonShitRSS = millis();
+            }
+            if (WiFi.localIP().toString() == "0.0.0.0") {
+                if (millis() - wifiMgrInvalidIPSince > wifiMgrInvalidIPTimeout) {
+                    wifiMgrInvalidIPCount++;
+                    connectToWifi();
+                }
+            } else {
+                wifiMgrInvalidIPSince = 0;
             }
 
             if (wifiMgrRescanInterval > 0 && (millis() - wifiMgrLastScan) > wifiMgrRescanInterval) {
@@ -269,7 +284,9 @@ void status() {
             "s\nscanned: " + String(wifiMgrScanCount) +
             " times\nconnected: " + String(wifiMgrConnectCount) +
             " times\n" +
-            "\nfree heap: " + ESP.getFreeHeap()
+            "\nfree heap: " + ESP.getFreeHeap() +
+            "\nreconnects invalid IP: " + wifiMgrInvalidIPCount +
+            "\nreconnects invalid RSSI: " + wifiMgrInvalidRSSICount +
 #if defined(ESP8266)
             + "\nheap fragmentation: " + ESP.getHeapFragmentation()
 #endif

@@ -67,6 +67,9 @@ bool wifiMgrSetupEEPROM() {
 
         if (entryNameLength != 0 && entryValueLength != 0) {
             auto *newEntry = nextEmptyCacheEntry();
+            if (newEntry == nullptr) {
+                return false;  // No more space in cache
+            }
             newEntry->name = new char[entryNameLength + 1];
             newEntry->name[entryNameLength] = 0;
             newEntry->nameLen = entryNameLength;
