@@ -299,7 +299,7 @@ void status() {
             + "\nheap fragmentation: " + ESP.getHeapFragmentation()
 #endif
 ;
-    wifiMgrServer->send(200, "text/plain", s);
+    wifiMgrServer->send(200, "text/plain", buffer);
 }
 
 void restart() {
