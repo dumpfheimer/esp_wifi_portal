@@ -295,9 +295,7 @@ void status() {
     len += snprintf(buffer + len, sizeof(buffer) - len, "reconnects invalid IP: %lu\n", wifiMgrInvalidIPCount);
     len += snprintf(buffer + len, sizeof(buffer) - len, "reconnects invalid RSSI: %lu\n", wifiMgrInvalidRSSICount);
     len += snprintf(buffer + len, sizeof(buffer) - len, "server restarts (post): %lu", wifiMgrPostStartedServerCount);
-#if defined(ESP8266)
-            + "\nheap fragmentation: " + ESP.getHeapFragmentation()
-#endif
+    len += snprintf(buffer + len, sizeof(buffer) - len, "heap fragmentation: %lu", ESP.getHeapFragmentation());
 ;
     wifiMgrServer->send(200, "text/plain", buffer);
 }
