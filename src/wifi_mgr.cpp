@@ -66,11 +66,7 @@ void connectToWifi() {
     mdns_free();
 #endif
 
-    delayAndLoop(100);
-
-    WiFi.scanDelete();
     WiFi.disconnect(true);
-    delayAndLoop(100);
     waitForDisconnect(3000);
     WiFi.mode(WIFI_STA);
 
@@ -85,6 +81,7 @@ void connectToWifi() {
         yield();
     }
     n = WiFi.scanComplete();
+    WiFi.scanDelete();
 
     if (n > 0) {
         String ssid;
@@ -121,7 +118,6 @@ void connectToWifi() {
             if (!waitForWifi(wifiMgrWaitForConnectMs)) {
                 WiFi.disconnect(true);
                 WiFi.mode(WIFI_OFF);
-                delayAndLoop(100);
                 waitForDisconnect(3000);
                 wifiMgrUnsuccessfullTries += 1;
                 if (wifiMgrUnsuccessfullTries >= wifiMgrRebootAfterUnsuccessfullTries) {
@@ -200,7 +196,7 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 void loopWifi() {
     if (!WiFi.isConnected()) {
         connectToWifi();
-        if (wifiMgrNotifyNoWifiCallback != nullptr && millis() - wifiMgrlastConnected > wifiMgrNotifyNoWifiTimeout) {
+        if (!WiFi.isConnected() && wifiMgrNotifyNoWifiCallback != nullptr && millis() - wifiMgrlastConnected > wifiMgrNotifyNoWifiTimeout) {
             wifiMgrNotifyNoWifiCallback();
         }
     }
@@ -215,7 +211,7 @@ void loopWifi() {
                 if ((millis() - wifiMgrLastNonShitRSS) > wifiMgrTolerateBadRSSms) {
                     connectToWifi();
                 }
-            } else if (rss > 0) {
+            } /*else if (rss > 0) {
                 if (wifiMgrInvalidRSSISince == 0) {
                     wifiMgrInvalidRSSISince = millis();
                 } else {
@@ -223,7 +219,7 @@ void loopWifi() {
                         connectToWifi();
                     }
                 }
-            } else {
+            } */else {
                 wifiMgrInvalidRSSISince = 0;
                 wifiMgrLastNonShitRSS = millis();
             }
