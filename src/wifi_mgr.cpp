@@ -280,19 +280,21 @@ void bssid() {
 }
 
 void status() {
-    String s = "ssid: " + WiFi.SSID() +
-            "\nconnected: " + String(WiFi.isConnected()) +
-            "\nbssid: " + WiFi.BSSIDstr() +
-            "\nrssi: " + String(WiFi.RSSI()) +
-            "\nuptime: " + String(millis()/1000) +
-            "s\nlast scan: " + String((millis() - wifiMgrLastScan)/1000) +
-            "s\nscanned: " + String(wifiMgrScanCount) +
-            " times\nconnected: " + String(wifiMgrConnectCount) +
-            " times\n" +
-            "\nfree heap: " + ESP.getFreeHeap() +
-            "\nreconnects invalid IP: " + wifiMgrInvalidIPCount +
-            "\nreconnects invalid RSSI: " + wifiMgrInvalidRSSICount +
-            "\nserver restarts (post): " + wifiMgrPostStartedServerCount
+    char buffer[500];
+    int len = 0;
+
+    len += snprintf(buffer + len, sizeof(buffer) - len, "ssid: %s\n", WiFi.SSID().c_str());
+    len += snprintf(buffer + len, sizeof(buffer) - len, "connected: %d\n", WiFi.isConnected());
+    len += snprintf(buffer + len, sizeof(buffer) - len, "bssid: %s\n", WiFi.BSSIDstr().c_str());
+    len += snprintf(buffer + len, sizeof(buffer) - len, "rssi: %d\n", WiFi.RSSI());
+    len += snprintf(buffer + len, sizeof(buffer) - len, "uptime: %lus\n", millis()/1000);
+    len += snprintf(buffer + len, sizeof(buffer) - len, "last scan: %lus\n", (millis() - wifiMgrLastScan)/1000);
+    len += snprintf(buffer + len, sizeof(buffer) - len, "scanned: %lu times\n", wifiMgrScanCount);
+    len += snprintf(buffer + len, sizeof(buffer) - len, "connected: %lu times\n\n", wifiMgrConnectCount);
+    len += snprintf(buffer + len, sizeof(buffer) - len, "free heap: %d\n", ESP.getFreeHeap());
+    len += snprintf(buffer + len, sizeof(buffer) - len, "reconnects invalid IP: %lu\n", wifiMgrInvalidIPCount);
+    len += snprintf(buffer + len, sizeof(buffer) - len, "reconnects invalid RSSI: %lu\n", wifiMgrInvalidRSSICount);
+    len += snprintf(buffer + len, sizeof(buffer) - len, "server restarts (post): %lu", wifiMgrPostStartedServerCount);
 #if defined(ESP8266)
             + "\nheap fragmentation: " + ESP.getHeapFragmentation()
 #endif
