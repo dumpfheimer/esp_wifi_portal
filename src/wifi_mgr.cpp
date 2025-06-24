@@ -294,8 +294,8 @@ void status() {
     len += snprintf(buffer + len, sizeof(buffer) - len, "free heap: %d\n", ESP.getFreeHeap());
     len += snprintf(buffer + len, sizeof(buffer) - len, "reconnects invalid IP: %lu\n", wifiMgrInvalidIPCount);
     len += snprintf(buffer + len, sizeof(buffer) - len, "reconnects invalid RSSI: %lu\n", wifiMgrInvalidRSSICount);
-    len += snprintf(buffer + len, sizeof(buffer) - len, "server restarts (post): %lu", wifiMgrPostStartedServerCount);
-    len += snprintf(buffer + len, sizeof(buffer) - len, "heap fragmentation: %lu", ESP.getHeapFragmentation());
+    len += snprintf(buffer + len, sizeof(buffer) - len, "server restarts (post): %lu\n", wifiMgrPostStartedServerCount);
+    len += snprintf(buffer + len, sizeof(buffer) - len, "heap fragmentation: %d", ESP.getHeapFragmentation());
 ;
     wifiMgrServer->send(200, "text/plain", buffer);
 }
