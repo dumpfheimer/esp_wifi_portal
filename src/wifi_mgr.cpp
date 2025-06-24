@@ -4,6 +4,7 @@
 
 #if defined(ESP8266)
 MDNSResponder wifiMgrMdns;
+ESP8266HTTPUpdateServer updateServer;
 #elif defined(ESP32)
 #endif
 
@@ -142,8 +143,13 @@ void connectToWifi() {
                     }
 #endif
                 }
+
+#if defined(ESP8266)
                 // status 0 means the server is closed - so not running (I think)
                 if (wifiMgrServer != nullptr && wifiMgrServer->getServer().status() == 0) wifiMgrServer->begin();
+#elif defined(ESP32)
+                wifiMgrServer->begin();
+#endif
                 wifiMgrLastNonShitRSS = millis();
                 wifiMgrInvalidRSSISince = 0;
                 wifiMgrInvalidIPSince = 0;
@@ -250,10 +256,13 @@ void loopWifi() {
             } else {
                 wifiMgrInvalidIPSince = 0;
             }
+
+#if defined(ESP8266)
             if (wifiMgrServer != nullptr && wifiMgrServer->getServer().status() == 0) {
                 wifiMgrPostStartedServerCount++;
                 wifiMgrServer->begin();
             }
+#endif
 
             if (wifiMgrRescanInterval > 0 && (millis() - wifiMgrLastScan) > wifiMgrRescanInterval) {
                 connectToWifi();
@@ -325,7 +334,84 @@ void wifiMgrExpose(XWebServer *wifiMgrServer_) {
         wifiMgrServer->on("/wifiMgr/restart", restart);
         wifiMgrServer->on("/wifiMgr/reconnect", reconnect);
 
-        ElegantOTA.begin(wifiMgrServer);
+#if defined(ESP8266)
+        updateServer.setup(wifiMgrServer, "/update");
+#elif defined(ESP32)
+        bool authenticate = false;
+        char *_username = nullptr;
+        char *_password = nullptr;
+        // this portion was copied from ElegantOTA 2 and was provided with the MIT license it does not seem to be the original source, though
+        // MIT License
+        //
+        //Copyright (c) 2019 Ayush Sharma
+        //
+        //Permission is hereby granted, free of charge, to any person obtaining a copy
+        //of this software and associated documentation files (the "Software"), to deal
+        //in the Software without restriction, including without limitation the rights
+        //to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        //copies of the Software, and to permit persons to whom the Software is
+        //furnished to do so, subject to the following conditions:
+        //
+        //The above copyright notice and this permission notice shall be included in all
+        //copies or substantial portions of the Software.
+        //
+        //THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        //IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        //FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        //AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        //LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        //OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        //SOFTWARE.
+        // start of licensed code
+        wifiMgrServer->on("/update", HTTP_POST, [&](){
+            if (authenticate && !wifiMgrServer->authenticate(_username, _password)) {
+                return;
+            }
+            wifiMgrServer->sendHeader("Connection", "close");
+            wifiMgrServer->send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+            #if defined(ESP32)
+                // Needs some time for Core 0 to send response
+                delay(100);
+                yield();
+                delay(100);
+            #endif
+            ESP.restart();
+        }, [&](){
+            // Actual OTA Download
+            if (authenticate && !wifiMgrServer->authenticate(_username, _password)) {
+                return;
+            }
+
+            HTTPUpload& upload = wifiMgrServer->upload();
+            if (upload.status == UPLOAD_FILE_START) {
+                Serial.setDebugOutput(true);
+                Serial.printf("Update Received: %s\n", upload.filename.c_str());
+                if (upload.name == "filesystem") {
+                    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)) { //start with max available size
+                        Update.printError(Serial);
+                    }
+                } else {
+                    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) { //start with max available size
+                        Update.printError(Serial);
+                    }
+                }
+            } else if (upload.status == UPLOAD_FILE_WRITE) {
+                if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+                    Update.printError(Serial);
+                }
+            } else if (upload.status == UPLOAD_FILE_END) {
+                if (Update.end(true)) { //true to set the size to the current progress
+                    Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+                } else {
+                    Update.printError(Serial);
+                }
+                Serial.setDebugOutput(false);
+            } else {
+                Serial.printf("Update Failed Unexpectedly (likely broken connection): status=%d\n", upload.status);
+            }
+        });
+        // end of licensed code
+#endif
     }
 }
 

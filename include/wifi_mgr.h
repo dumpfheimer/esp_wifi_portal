@@ -11,11 +11,10 @@
 #include "configuration.h"
 #endif
 
-#include "ElegantOTA.h"
-
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#include <ESP8266HTTPUpdateServer.h>
 #include <ESP8266mDNS.h>
 #define XWebServer ESP8266WebServer
 #elif defined(ESP32)
@@ -23,6 +22,7 @@
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #define XWebServer WebServer
+#include "Update.h"
 #else
 #error "This hardware is not supported"
 #endif
