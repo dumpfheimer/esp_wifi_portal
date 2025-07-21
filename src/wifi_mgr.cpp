@@ -28,6 +28,10 @@ unsigned long wifiMgrPostStartedServerCount = 0;
 uint8_t wifiMgrRebootAfterUnsuccessfullTries = 0;
 uint8_t wifiMgrUnsuccessfullTries = 0;
 
+#if defined(ESP32)
+static bool mdnsInitialized = false;
+#endif
+
 int8_t badRSS = -70;
 const char* wifiMgrSSID = nullptr;
 const char* wifiMgrPW = nullptr;
@@ -69,7 +73,10 @@ void connectToWifi() {
 #if defined(ESP8266)
     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
 #elif defined(ESP32)
-    mdns_free();
+    if (mdnsInitialized) {
+        mdns_free();
+        mdnsInitialized = false;
+    }
 #endif
 
     WiFi.disconnect(true);
@@ -128,6 +135,7 @@ void connectToWifi() {
                 waitForDisconnect(3000);
                 wifiMgrUnsuccessfullTries += 1;
                 if (wifiMgrUnsuccessfullTries >= wifiMgrRebootAfterUnsuccessfullTries) {
+                    wifiMgrCleanup(); // Clean up resources before restart
                     ESP.restart();
                 }
             } else {
@@ -140,6 +148,7 @@ void connectToWifi() {
                     esp_err_t err = mdns_init();
                     if (err == ESP_OK) {
                         mdns_hostname_set(wifiMgrHN);
+                        mdnsInitialized = true;
                     }
 #endif
                 }
@@ -171,8 +180,13 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
     setupWifi(SSID, password, hostname, tolerateBadRSSms, waitForConnectMs, wifiMgrWaitForScanMs, wifiMgrRescanInterval);
 }
 
+void setRescanInterval(unsigned long rescanInterval) {
+    wifiMgrRescanInterval = rescanInterval;
+}
+
 void onOTAEnd(bool success) {
     if (success) {
+        wifiMgrCleanup(); // Clean up resources before restart
         ESP.restart();
     }
 }
@@ -315,6 +329,7 @@ void restart() {
     wifiMgrServer->send(200, "text/plain", "restarting");
     unsigned long start = millis();
     while (millis() - start < 500) yield();
+    wifiMgrCleanup(); // Clean up resources before restart
     ESP.restart();
 }
 
@@ -339,9 +354,9 @@ void wifiMgrExpose(XWebServer *wifiMgrServer_) {
 #if defined(ESP8266)
         updateServer.setup(wifiMgrServer, "/update");
 #elif defined(ESP32)
-        bool authenticate = false;
-        char *_username = nullptr;
-        char *_password = nullptr;
+        static bool authenticate = false;
+        static char *_username = nullptr;
+        static char *_password = nullptr;
         // this portion was copied from ElegantOTA 2 and was provided with the MIT license it does not seem to be the original source, though
         // MIT License
         //
@@ -377,6 +392,7 @@ void wifiMgrExpose(XWebServer *wifiMgrServer_) {
                 yield();
                 delay(100);
             #endif
+            wifiMgrCleanup(); // Clean up resources before restart
             ESP.restart();
         }, [&](){
             // Actual OTA Download
@@ -436,4 +452,34 @@ void wifiMgrNotifyNoWifi(void (*wifiMgrNotifyNoWifiCallbackArg)(void), unsigned 
 
 void setLoopFunction(void (*loopFunctionPointerArg)(void)) {
     loopFunctionPointer = loopFunctionPointerArg;
+}
+
+// Function to clean up resources before restart
+void wifiMgrCleanup() {
+    // Free allocated strings
+    if (wifiMgrSSID != nullptr) {
+        free((void*)wifiMgrSSID);
+        wifiMgrSSID = nullptr;
+    }
+    if (wifiMgrPW != nullptr) {
+        free((void*)wifiMgrPW);
+        wifiMgrPW = nullptr;
+    }
+    if (wifiMgrHN != nullptr) {
+        free((void*)wifiMgrHN);
+        wifiMgrHN = nullptr;
+    }
+    
+    // Disconnect WiFi
+    WiFi.disconnect(true);
+    
+    // Free MDNS resources
+#if defined(ESP8266)
+    if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
+#elif defined(ESP32)
+    if (mdnsInitialized) {
+        mdns_free();
+        mdnsInitialized = false;
+    }
+#endif
 }

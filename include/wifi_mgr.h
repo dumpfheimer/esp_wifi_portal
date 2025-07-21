@@ -38,5 +38,7 @@ void wifiMgrSetRebootAfterUnsuccessfullTries(uint8_t _wifiMgrRebootAfterUnsucces
 void wifiMgrSetBadRSSI(int8_t rssi);
 void wifiMgrNotifyNoWifi(void (*wifiMgrNotifyNoWifiCallbackArg)(void), unsigned long timeout);
 void setLoopFunction(void (*loopFunctionPointerArg)(void));
+void wifiMgrCleanup(); // Function to clean up resources before restart
+void setRescanInterval(unsigned long rescanInterval);
 
 #endif //WIFI_MGR_H

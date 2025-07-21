@@ -23,6 +23,7 @@ struct PortalConfigEntry {
 void wifiMgrPortalSetup(bool redirectIndex, const char* ssidPrefix, const char* password);
 bool wifiMgrPortalLoop();
 void wifiMgrPortalAddConfigEntry(const char* name, const char* eepromKey, PortalConfigEntryType type, bool isPassword, bool restartOnChange);
+void wifiMgrPortalCleanup(); // Add cleanup function declaration
 
 
 #endif //WIFI_MGR_PORTAL_H

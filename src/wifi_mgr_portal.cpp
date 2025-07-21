@@ -50,8 +50,6 @@ void wifiMgrPortalSendConfigure() {
             }
             tmp = tmp->next;
         }
-        //wifiMgrPortalWebServer->sendHeader("Location", "/wifiMgr/configure");
-        //wifiMgrPortalWebServer->send(301);
     }
     String ret = "<html><body><form action=# method=POST>";
     tmp = firstEntry;
@@ -117,6 +115,7 @@ void wifiMgrPortalSendConfigure() {
         if (needRestart) {
             unsigned long start = millis();
             while (millis() - start < 1000) yield();
+            wifiMgrPortalCleanup(); // Clean up resources before restart
             ESP.restart();
         }
     } else {
@@ -126,8 +125,19 @@ void wifiMgrPortalSendConfigure() {
 }
 
 void wifiMgrPortalSetup(bool redirectIndex, const char* ssidPrefix_, const char* password_) {
-    ssidPrefix = ssidPrefix_;
-    password = password_;
+    // Free previous values if they exist to prevent memory leaks
+    if (ssidPrefix != nullptr) {
+        free((void*)ssidPrefix);
+        ssidPrefix = nullptr;
+    }
+    if (password != nullptr) {
+        free((void*)password);
+        password = nullptr;
+    }
+    
+    // Make copies of the strings to prevent dangling pointers
+    ssidPrefix = (ssidPrefix_ != nullptr && strlen(ssidPrefix_) > 0) ? strdup(ssidPrefix_) : nullptr;
+    password = (password_ != nullptr && strlen(password_) > 0) ? strdup(password_) : nullptr;
     wifiMgrPortalRedirectIndex = redirectIndex;
     const char* ssid = wifiMgrGetConfig("SSID");
     wifiMgrPortalAddConfigEntry("SSID", "SSID", STRING, false, true);
@@ -202,4 +212,25 @@ bool wifiMgrPortalLoop() {
         if (wifiMgrPortalWebServer != nullptr) wifiMgrPortalWebServer->handleClient();
     }
     return false;
+}
+
+// Cleanup function to free memory used by PortalConfigEntry objects
+void wifiMgrPortalCleanup() {
+    PortalConfigEntry* current = firstEntry;
+    PortalConfigEntry* next = nullptr;
+    
+    while (current != nullptr) {
+        next = current->next;
+        delete current;
+        current = next;
+    }
+    
+    firstEntry = nullptr;
+    
+    // If we created our own server, delete it
+    if (wifiMgrPortalIsOwnServer && wifiMgrPortalWebServer != nullptr) {
+        delete wifiMgrPortalWebServer;
+        wifiMgrPortalWebServer = nullptr;
+        wifiMgrPortalIsOwnServer = false;
+    }
 }
