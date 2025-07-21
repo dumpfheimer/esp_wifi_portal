@@ -166,7 +166,11 @@ void wifiMgrPortalSetup(bool redirectIndex, const char* ssidPrefix_, const char*
 }
 
 void wifiMgrPortalAddConfigEntry(const char* name, const char* eepromKey, PortalConfigEntryType type, bool isPassword, bool restartOnChange) {
-    PortalConfigEntry *newEntry = new PortalConfigEntry();
+    auto *newEntry = new (std::nothrow) PortalConfigEntry();
+    if (!newEntry) {
+        return;
+    }
+
     newEntry->name = name;
     newEntry->eepromKey = eepromKey;
     newEntry->type = type;

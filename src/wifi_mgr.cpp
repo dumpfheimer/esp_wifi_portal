@@ -57,7 +57,7 @@ void delayAndLoop(unsigned long delayMS) {
 
 void waitForDisconnect(unsigned long timeout) {
     unsigned long waitForConnectStart = millis();
-    while (WiFi.status() == WL_CONNECTED && (millis() - waitForConnectStart) < timeout) {
+    while (WiFiClass::status() == WL_CONNECTED && (millis() - waitForConnectStart) < timeout) {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
         yield();
     }
@@ -94,7 +94,7 @@ void connectToWifi() {
         int32_t RSSI;
         uint8_t *BSSID;
         int32_t channel;
-        bool isHidden;
+        bool isHidden = false;
 
         uint8_t bestBSSID[6];
         int32_t bestRSSI = -999;
@@ -300,11 +300,13 @@ void status() {
     len += snprintf(buffer + len, sizeof(buffer) - len, "last scan: %lus\n", (millis() - wifiMgrLastScan)/1000);
     len += snprintf(buffer + len, sizeof(buffer) - len, "scanned: %lu times\n", wifiMgrScanCount);
     len += snprintf(buffer + len, sizeof(buffer) - len, "connected: %lu times\n\n", wifiMgrConnectCount);
-    len += snprintf(buffer + len, sizeof(buffer) - len, "free heap: %d\n", ESP.getFreeHeap());
+    len += snprintf(buffer + len, sizeof(buffer) - len, "free heap: %du\n", ESP.getFreeHeap());
     len += snprintf(buffer + len, sizeof(buffer) - len, "reconnects invalid IP: %lu\n", wifiMgrInvalidIPCount);
     len += snprintf(buffer + len, sizeof(buffer) - len, "reconnects invalid RSSI: %lu\n", wifiMgrInvalidRSSICount);
     len += snprintf(buffer + len, sizeof(buffer) - len, "server restarts (post): %lu\n", wifiMgrPostStartedServerCount);
+#if defined(ESP8266)
     len += snprintf(buffer + len, sizeof(buffer) - len, "heap fragmentation: %d", ESP.getHeapFragmentation());
+#endif
 ;
     wifiMgrServer->send(200, "text/plain", buffer);
 }
