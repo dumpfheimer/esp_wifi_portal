@@ -61,7 +61,7 @@ void delayAndLoop(unsigned long delayMS) {
 
 void waitForDisconnect(unsigned long timeout) {
     unsigned long waitForConnectStart = millis();
-    while (WiFiClass::status() == WL_CONNECTED && (millis() - waitForConnectStart) < timeout) {
+    while (WiFi.status() == WL_CONNECTED && (millis() - waitForConnectStart) < timeout) {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
         yield();
     }

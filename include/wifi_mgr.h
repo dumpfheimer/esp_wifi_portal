@@ -17,11 +17,13 @@
 #include <ESP8266HTTPUpdateServer.h>
 #include <ESP8266mDNS.h>
 #define XWebServer ESP8266WebServer
+#define XWiFiClass ESP8266WiFiClass
 #elif defined(ESP32)
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #define XWebServer WebServer
+#define XWiFiClass WiFiClass
 #include "Update.h"
 #else
 #error "This hardware is not supported"
