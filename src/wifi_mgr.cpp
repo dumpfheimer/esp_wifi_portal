@@ -67,6 +67,14 @@ void waitForDisconnect(unsigned long timeout) {
     }
 }
 
+void wifiNotifyUnsuccessfullTry() {
+    wifiMgrUnsuccessfullTries += 1;
+    if (wifiMgrRebootAfterUnsuccessfullTries > 0 && wifiMgrUnsuccessfullTries >= wifiMgrRebootAfterUnsuccessfullTries) {
+        wifiMgrCleanup(); // Clean up resources before restart
+        ESP.restart();
+    }
+}
+
 void connectToWifi() {
     //if (wifiMgrServer != nullptr) wifiMgrServer->stop();
     //if (wifiMgrServer != nullptr) wifiMgrServer->close();
@@ -89,7 +97,7 @@ void connectToWifi() {
 
     unsigned long waitForScanStart = millis();
 
-    while (WiFi.scanComplete() < 0 && (millis() - waitForScanStart) < wifiMgrWaitForScanMs) {
+    while (WiFi.scanComplete() == -1 && (millis() - waitForScanStart) < wifiMgrWaitForScanMs) {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
         yield();
     }
@@ -121,9 +129,6 @@ void connectToWifi() {
                 bestChannel = channel;
             }
         }
-        WiFi.scanDelete();
-
-        wifiMgrLastScan = millis();
 
         if (bestRSSI != -999) {
             WiFi.begin(wifiMgrSSID, wifiMgrPW, bestChannel, bestBSSID);
@@ -133,11 +138,7 @@ void connectToWifi() {
                 WiFi.disconnect(true);
                 WiFi.mode(WIFI_OFF);
                 waitForDisconnect(3000);
-                wifiMgrUnsuccessfullTries += 1;
-                if (wifiMgrUnsuccessfullTries >= wifiMgrRebootAfterUnsuccessfullTries) {
-                    wifiMgrCleanup(); // Clean up resources before restart
-                    ESP.restart();
-                }
+                wifiNotifyUnsuccessfullTry();
             } else {
                 wifiMgrUnsuccessfullTries = 0;
                 if (wifiMgrHN != nullptr && strlen(wifiMgrHN) > 0) {
@@ -163,8 +164,13 @@ void connectToWifi() {
                 wifiMgrInvalidRSSISince = 0;
                 wifiMgrInvalidIPSince = 0;
             }
+        } else {
+            wifiNotifyUnsuccessfullTry();
         }
+    } else {
+        wifiNotifyUnsuccessfullTry();
     }
+    wifiMgrLastScan = millis();
     WiFi.scanDelete();
 }
 
@@ -233,8 +239,10 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 
 void loopWifi() {
     if (!WiFi.isConnected()) {
-        connectToWifi();
-        if (!WiFi.isConnected() && wifiMgrNotifyNoWifiCallback != nullptr && millis() - wifiMgrlastConnected > wifiMgrNotifyNoWifiTimeout) {
+        if (wifiMgrLastScan == 0 || (millis() - wifiMgrLastScan) > 10000) {
+            connectToWifi();
+        }
+        if (!WiFi.isConnected() && wifiMgrNotifyNoWifiCallback != nullptr && (wifiMgrlastConnected == 0 ? millis() : millis() - wifiMgrlastConnected) > wifiMgrNotifyNoWifiTimeout) {
             wifiMgrNotifyNoWifiCallback();
         }
     }
