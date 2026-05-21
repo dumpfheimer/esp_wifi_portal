@@ -1,6 +1,7 @@
 // PUBLISHED UNDER CC BY-NC 4.0 https://creativecommons.org/licenses/by-nc/4.0/
 
 #include "wifi_mgr_portal.h"
+#include <vector>
 
 bool wifiMgrPortalIsSetup = false;
 bool wifiMgrPortalStarted = false;
@@ -13,6 +14,9 @@ const char *ssidPrefix = nullptr;
 const char *password = nullptr;
 
 PortalConfigEntry *firstEntry = nullptr;
+
+// Storage for on-change listeners
+std::vector<WifiMgrPortalOnChangeCallback> onChangeListeners;
 
 PortalConfigEntry* getLastEntry() {
     PortalConfigEntry* tmp = firstEntry;
@@ -49,6 +53,15 @@ void wifiMgrPortalSendConfigure() {
                 }
             }
             tmp = tmp->next;
+        }
+        
+        // Notify all registered on-change listeners if there were any changes
+        if (changes > 0) {
+            for (const auto& listener : onChangeListeners) {
+                if (listener != nullptr) {
+                    listener(changes);
+                }
+            }
         }
     }
     
@@ -138,7 +151,7 @@ void wifiMgrPortalSendConfigure() {
             setupWifi(wifiMgrGetConfig("SSID"), wifiMgrGetConfig("WIFI_PW"));
             if (WiFi.isConnected()) {
                 if (!wifiMgrCommitEEPROM()) {
-                    wifiMgrPortalCommitFailed = false;
+                    wifiMgrPortalCommitFailed = true;
                 }
                 wifiMgrPortalConnectFailed = false;
             } else {
@@ -512,7 +525,7 @@ void wifiMgrPortalSetup(bool redirectIndex, const char* ssidPrefix_, const char*
             macAddress.replace(":", "");
             macAddress = macAddress.substring(6, macAddress.length());
 
-            setupWifi(ssid, pw, (String(ssidPrefix) + macAddress).c_str());
+            setupWifi(ssid, pw, (String(ssidPrefix != nullptr ? ssidPrefix : "") + macAddress).c_str());
         }
         else setupWifi(ssid, pw, host);
 
@@ -558,6 +571,14 @@ void wifiMgrPortalAddConfigEntry(const char* name, const char* eepromKey, Portal
     else last->next = newEntry;
 }
 
+void wifiMgrPortalUseExtraConfigs() {
+    // unsigned long tolerateBadRSSms, unsigned long waitForConnectMs, unsigned long waitForScanMs, unsigned long rescanInterval
+    wifiMgrPortalAddConfigEntry("Bad RSSI", "WM_BRRSI", NUMBER, false, false);
+    wifiMgrPortalAddConfigEntry("Wait for Connection (ms)", "WM_TO_CON", NUMBER, false, false);
+    wifiMgrPortalAddConfigEntry("Wait for Scan (ms)", "WM_TO_SCA", NUMBER, false, false);
+    wifiMgrPortalAddConfigEntry("Rescan Interval (ms)", "WM_TO_RES", NUMBER, false, false);
+}
+
 bool wifiMgrPortalLoop() {
     if (wifiMgrPortalIsSetup) {
         loopWifi();
@@ -567,7 +588,7 @@ bool wifiMgrPortalLoop() {
         String macAddress = WiFi.macAddress();
         macAddress.replace(":", "");
         macAddress = macAddress.substring(6, macAddress.length());
-        WiFi.softAP((String(ssidPrefix) + macAddress).c_str(), password);
+        WiFi.softAP((String(ssidPrefix != nullptr ? ssidPrefix : "") + macAddress).c_str(), password);
 
 #if defined(ESP8266)
         if (wifiMgrPortalWebServer != nullptr && wifiMgrPortalWebServer->getServer().status() == 0) wifiMgrPortalWebServer->begin();
@@ -578,6 +599,28 @@ bool wifiMgrPortalLoop() {
         if (wifiMgrPortalWebServer != nullptr) wifiMgrPortalWebServer->handleClient();
     }
     return false;
+}
+
+void wifiMgrPortalAddOnChangeListener(WifiMgrPortalOnChangeCallback callback) {
+    if (callback != nullptr) {
+        for (const auto& existingCallback : onChangeListeners) {
+            if (existingCallback == callback) {
+                return;
+            }
+        }
+        onChangeListeners.push_back(callback);
+    }
+}
+
+void wifiMgrPortalRemoveOnChangeListener(WifiMgrPortalOnChangeCallback callback) {
+    if (callback != nullptr) {
+        for (auto it = onChangeListeners.begin(); it != onChangeListeners.end(); ++it) {
+            if (*it == callback) {
+                onChangeListeners.erase(it);
+                break;
+            }
+        }
+    }
 }
 
 // Cleanup function to free memory used by PortalConfigEntry objects
@@ -592,6 +635,8 @@ void wifiMgrPortalCleanup() {
     }
     
     firstEntry = nullptr;
+
+    onChangeListeners.clear();
     
     // If we created our own server, delete it
     if (wifiMgrPortalIsOwnServer && wifiMgrPortalWebServer != nullptr) {

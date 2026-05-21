@@ -271,7 +271,9 @@ void loopWifi() {
                 wifiMgrLastNonShitRSS = millis();
             }
             if (WiFi.localIP().toString() == "0.0.0.0") {
-                if (millis() - wifiMgrInvalidIPSince > wifiMgrInvalidIPTimeout) {
+                if (wifiMgrInvalidIPSince == 0) {
+                    wifiMgrInvalidIPSince = millis();
+                } else if (millis() - wifiMgrInvalidIPSince > wifiMgrInvalidIPTimeout) {
                     wifiMgrInvalidIPCount++;
                     connectToWifi();
                 }
