@@ -27,6 +27,12 @@ unsigned long wifiMgrInvalidIPCount = 0;
 unsigned long wifiMgrPostStartedServerCount = 0;
 uint8_t wifiMgrRebootAfterUnsuccessfullTries = 0;
 uint8_t wifiMgrUnsuccessfullTries = 0;
+// Set by the /wifiMgr/reconnect handler, executed by loopWifi():
+// connectToWifi() blocks for up to ~90s and its wait loops re-enter
+// server.handleClient() via the app's yield callbacks. Running it inside an
+// HTTP handler makes the web server re-enter itself mid-request, which can
+// crash the device.
+volatile bool wifiMgrReconnectRequested = false;
 
 #if defined(ESP32)
 static bool mdnsInitialized = false;
@@ -238,6 +244,10 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 }
 
 void loopWifi() {
+    if (wifiMgrReconnectRequested) {
+        wifiMgrReconnectRequested = false;
+        connectToWifi();
+    }
     if (!WiFi.isConnected()) {
         if (wifiMgrLastScan == 0 || (millis() - wifiMgrLastScan) > 10000) {
             connectToWifi();
@@ -344,10 +354,9 @@ void restart() {
 }
 
 void reconnect() {
+    // deferred to loopWifi() via the flag - see wifiMgrReconnectRequested
     wifiMgrServer->send(200, "text/plain", "reconnecting");
-    unsigned long start = millis();
-    while (millis() - start < 500) yield();
-    connectToWifi();
+    wifiMgrReconnectRequested = true;
 }
 
 void wifiMgrExpose(XWebServer *wifiMgrServer_) {
