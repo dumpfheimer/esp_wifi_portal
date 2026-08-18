@@ -112,6 +112,9 @@ bool wifiMgrCommitEEPROM() {
     for (int i = 0; i < WIFI_MGR_MAX_CONFIG_ENTRIES; i++) {
         CacheEntry cacheEntry = cache[i];
         if (cacheEntry.value != nullptr && cacheEntry.name != nullptr) {
+            if (eepromPtr + 2 + cacheEntry.nameLen + cacheEntry.valueLen >= eepromStartAddress + eepromSize) {
+                return false;
+            }
             EEPROM.write(eepromPtr++, cacheEntry.nameLen);
             for (unsigned int wi = 0; wi < cacheEntry.nameLen; wi++) {
                 EEPROM.write(eepromPtr++, cacheEntry.name[wi]);
@@ -206,10 +209,10 @@ long wifiMgrGetLongConfig(const char* name, long def) {
         return def;
     }
     load = 0;
-    load |= cacheEntry->value[0] << 24;
-    load |= cacheEntry->value[1] << 16;
-    load |= cacheEntry->value[2] << 8;
-    load |= cacheEntry->value[3];
+    load |= (uint8_t)cacheEntry->value[0] << 24;
+    load |= (uint8_t)cacheEntry->value[1] << 16;
+    load |= (uint8_t)cacheEntry->value[2] << 8;
+    load |= (uint8_t)cacheEntry->value[3];
     return load;
 }
 bool wifiMgrSetLongConfig(const char* name, long val) {
@@ -227,10 +230,10 @@ unsigned long wifiMgrGetUlongConfig(const char* name, unsigned long def) {
         return def;
     }
     load = 0;
-    load |= cacheEntry->value[0] << 24;
-    load |= cacheEntry->value[1] << 16;
-    load |= cacheEntry->value[2] << 8;
-    load |= cacheEntry->value[3];
+    load |= (uint8_t)cacheEntry->value[0] << 24;
+    load |= (uint8_t)cacheEntry->value[1] << 16;
+    load |= (uint8_t)cacheEntry->value[2] << 8;
+    load |= (uint8_t)cacheEntry->value[3];
     return load;
 }
 bool wifiMgrSetUlongConfig(const char* name, unsigned long val) {

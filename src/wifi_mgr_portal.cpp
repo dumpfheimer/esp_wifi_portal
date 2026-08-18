@@ -529,10 +529,7 @@ void wifiMgrPortalSetup(bool redirectIndex, const char* ssidPrefix_, const char*
         }
         else setupWifi(ssid, pw, host);
 
-#if defined(ESP8266)
-        if (wifiMgrPortalWebServer != nullptr && wifiMgrPortalWebServer->getServer().status() == 0) wifiMgrPortalWebServer->begin();
-#endif
-        wifiMgrPortalIsSetup = true;
+        wifiMgrPortalIsSetup = WiFi.isConnected();
     }
     wifiMgrPortalWebServer = wifiMgrGetWebServer();
     if (wifiMgrPortalWebServer == nullptr) {
@@ -588,10 +585,13 @@ bool wifiMgrPortalLoop() {
         String macAddress = WiFi.macAddress();
         macAddress.replace(":", "");
         macAddress = macAddress.substring(6, macAddress.length());
+        WiFi.mode(WIFI_AP);
         WiFi.softAP((String(ssidPrefix != nullptr ? ssidPrefix : "") + macAddress).c_str(), password);
 
 #if defined(ESP8266)
         if (wifiMgrPortalWebServer != nullptr && wifiMgrPortalWebServer->getServer().status() == 0) wifiMgrPortalWebServer->begin();
+#elif defined(ESP32)
+        if (wifiMgrPortalWebServer != nullptr) wifiMgrPortalWebServer->begin();
 #endif
 
         wifiMgrPortalStarted = true;
