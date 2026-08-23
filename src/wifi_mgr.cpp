@@ -3,7 +3,9 @@
 #include "wifi_mgr.h"
 
 #if defined(ESP8266)
+#if WIFI_MGR_USE_MDNS
 MDNSResponder wifiMgrMdns;
+#endif
 ESP8266HTTPUpdateServer updateServer;
 #elif defined(ESP32)
 #endif
@@ -34,7 +36,7 @@ uint8_t wifiMgrUnsuccessfullTries = 0;
 // crash the device.
 volatile bool wifiMgrReconnectRequested = false;
 
-#if defined(ESP32)
+#if defined(ESP32) && WIFI_MGR_USE_MDNS
 static bool mdnsInitialized = false;
 #endif
 
@@ -84,6 +86,7 @@ void wifiNotifyUnsuccessfullTry() {
 void connectToWifi() {
     //if (wifiMgrServer != nullptr) wifiMgrServer->stop();
     //if (wifiMgrServer != nullptr) wifiMgrServer->close();
+#if WIFI_MGR_USE_MDNS
 #if defined(ESP8266)
     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
 #elif defined(ESP32)
@@ -91,6 +94,7 @@ void connectToWifi() {
         mdns_free();
         mdnsInitialized = false;
     }
+#endif
 #endif
 
     WiFi.disconnect(true);
@@ -147,6 +151,7 @@ void connectToWifi() {
                 wifiNotifyUnsuccessfullTry();
             } else {
                 wifiMgrUnsuccessfullTries = 0;
+#if WIFI_MGR_USE_MDNS
                 if (wifiMgrHN != nullptr && strlen(wifiMgrHN) > 0) {
 #if defined(ESP8266)
                     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
@@ -159,6 +164,7 @@ void connectToWifi() {
                     }
 #endif
                 }
+#endif
 
 #if defined(ESP8266)
                 // status 0 means the server is closed - so not running (I think)
@@ -493,6 +499,7 @@ void wifiMgrCleanup() {
     WiFi.disconnect(true);
     
     // Free MDNS resources
+#if WIFI_MGR_USE_MDNS
 #if defined(ESP8266)
     if (wifiMgrMdns.isRunning()) wifiMgrMdns.end();
 #elif defined(ESP32)
@@ -500,5 +507,6 @@ void wifiMgrCleanup() {
         mdns_free();
         mdnsInitialized = false;
     }
+#endif
 #endif
 }

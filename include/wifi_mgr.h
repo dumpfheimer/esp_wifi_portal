@@ -11,17 +11,29 @@
 #include "configuration.h"
 #endif
 
+// mDNS is compiled in by default; define WIFI_MGR_DISABLE_MDNS (in my_config.h,
+// configuration.h or build_flags) to compile it out entirely.
+#if !defined(WIFI_MGR_DISABLE_MDNS)
+#define WIFI_MGR_USE_MDNS 1
+#else
+#define WIFI_MGR_USE_MDNS 0
+#endif
+
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPUpdateServer.h>
+#if WIFI_MGR_USE_MDNS
 #include <ESP8266mDNS.h>
+#endif
 #define XWebServer ESP8266WebServer
 #define XWiFiClass ESP8266WiFiClass
 #elif defined(ESP32)
 #include <WiFi.h>
 #include <WebServer.h>
+#if WIFI_MGR_USE_MDNS
 #include <ESPmDNS.h>
+#endif
 #define XWebServer WebServer
 #define XWiFiClass WiFiClass
 #include "Update.h"
