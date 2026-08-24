@@ -22,9 +22,11 @@ unsigned long wifiMgrRescanInterval = 3600 * 1000; // 1h
 unsigned long wifiMgrLastScan = 0;
 unsigned long wifiMgrWaitForConnectMs = 30000; // 30s
 #if defined(ESP32)
-// how long a latched ESP32 failure status must persist before waitForWifi()
-// treats it as final - see the comment in waitForWifi()
-#define WIFI_MGR_ESP32_FAIL_GRACE_MS 5000
+// pause between re-issued connect attempts in waitForWifi(), and how many
+// failed associations to tolerate before giving the attempt up early - see
+// the comment in waitForWifi()
+#define WIFI_MGR_ESP32_RETRY_BACKOFF_MS 500
+#define WIFI_MGR_ESP32_MAX_RETRIES 8
 #endif
 unsigned long wifiMgrWaitForScanMs = 30000; // 30s
 unsigned long wifiMgrScanCount = 0;
@@ -47,6 +49,21 @@ static bool wifiMgrServerStarted = false;
 #if WIFI_MGR_USE_MDNS
 static bool mdnsInitialized = false;
 #endif
+
+// Auto-reconnect is off, so the SDK never retries an association on its own:
+// every STA_DISCONNECTED event means "the current attempt is dead until someone
+// calls connect again". The event handler only records it; waitForWifi() reacts
+// from the calling task. ASSOC_LEAVE is skipped - that is a deliberate
+// WiFi.disconnect() by this lib (or the core), not a failure.
+static volatile uint16_t wifiMgrStaDropCount = 0;
+static volatile uint8_t wifiMgrStaDropReason = 0;
+
+static void wifiMgrOnStaDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
+    uint8_t reason = info.wifi_sta_disconnected.reason;
+    if (reason == WIFI_REASON_ASSOC_LEAVE) return;
+    wifiMgrStaDropReason = reason;
+    wifiMgrStaDropCount = wifiMgrStaDropCount + 1;
+}
 #endif
 
 int8_t badRSS = -70;
@@ -62,7 +79,8 @@ XWebServer *wifiMgrServer = nullptr;
 boolean waitForWifi(unsigned long timeout) {
     unsigned long start = millis();
 #if defined(ESP32)
-    unsigned long failedSince = 0;
+    unsigned long lastRetryAt = 0;
+    uint8_t retries = 0;
 #endif
     while ((millis() - start) < timeout) {
         wl_status_t s = WiFi.status();
@@ -73,16 +91,26 @@ boolean waitForWifi(unsigned long timeout) {
         // terminal failures, no point waiting out the timeout.
         if (s == WL_CONNECT_FAILED || s == WL_NO_SSID_AVAIL || s == WL_WRONG_PASSWORD) return false;
 #elif defined(ESP32)
-        // WiFi.status() is a value latched by the last WiFi event, not a live
-        // query. A single transient STA_DISCONNECTED (reason 201 NO_AP_FOUND,
-        // 202 AUTH_FAIL, 203 ASSOC_FAIL) latches a failure while the attempt is
-        // still in flight - common right after a scan when connecting with an
-        // explicit channel + BSSID. Bailing out on the first one aborts a
-        // connect that would have succeeded, so only give up if it stays failed.
-        if (s == WL_CONNECT_FAILED || s == WL_NO_SSID_AVAIL) {
-            if (failedSince == 0) failedSince = millis();
-            else if ((millis() - failedSince) > WIFI_MGR_ESP32_FAIL_GRACE_MS) return false;
-        } else failedSince = 0;
+        // On ESP32 with auto-reconnect off, a single STA_DISCONNECTED - however
+        // transient the reason (201 NO_AP_FOUND, 202 AUTH_FAIL, 203 ASSOC_FAIL,
+        // routine noise right after a scan when connecting with an explicit
+        // channel + BSSID) - ends the attempt for good: the SDK goes silent and
+        // WiFi.status() keeps whatever it latched. So instead of watching the
+        // status, watch the events and re-issue the connect ourselves, with a
+        // small backoff. A network that is genuinely down or rejecting us fails
+        // every association, so give up after a handful of retries rather than
+        // burning the whole timeout.
+        if (wifiMgrStaDropCount > 0 && (millis() - lastRetryAt) > WIFI_MGR_ESP32_RETRY_BACKOFF_MS) {
+            wifiMgrStaDropCount = 0;
+            lastRetryAt = millis();
+            retries++;
+            if (retries > WIFI_MGR_ESP32_MAX_RETRIES) {
+                WIFI_MGR_LOG("giving up after %u failed associations (last reason %u)", retries - 1, wifiMgrStaDropReason);
+                return false;
+            }
+            WIFI_MGR_LOG("association failed (reason %u), reconnect %u/%u", wifiMgrStaDropReason, retries, WIFI_MGR_ESP32_MAX_RETRIES);
+            WiFi.reconnect();
+        }
 #endif
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
         // delay() yields to the SDK on ESP8266 and feeds the idle/task WDT on
@@ -182,6 +210,12 @@ void connectToWifi() {
             WIFI_MGR_LOG("connecting to %02x:%02x:%02x:%02x:%02x:%02x ch %ld rssi %ld, timeout %lums",
                          bestBSSID[0], bestBSSID[1], bestBSSID[2], bestBSSID[3], bestBSSID[4], bestBSSID[5],
                          (long)bestChannel, (long)bestRSSI, wifiMgrWaitForConnectMs);
+#if defined(ESP32)
+            // forget disconnect events from before this attempt (e.g. the drop
+            // that triggered this reconnect) - only failures of THIS association
+            // may re-issue the connect in waitForWifi()
+            wifiMgrStaDropCount = 0;
+#endif
             WiFi.begin(wifiMgrSSID, wifiMgrPW, bestChannel, bestBSSID);
             bool connected = waitForWifi(wifiMgrWaitForConnectMs);
             wifiMgrConnectCount++;
@@ -277,6 +311,11 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 #elif defined(ESP32)
     WiFi.persistent(false);
     WiFi.setSleep(false);
+    static bool staDropHandlerRegistered = false;
+    if (!staDropHandlerRegistered) {
+        WiFi.onEvent(wifiMgrOnStaDisconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+        staDropHandlerRegistered = true;
+    }
 #endif
 
 
