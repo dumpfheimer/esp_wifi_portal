@@ -21,12 +21,18 @@ unsigned long wifiMgrTolerateBadRSSms = 300 * 1000; // 5m
 unsigned long wifiMgrRescanInterval = 3600 * 1000; // 1h
 unsigned long wifiMgrLastScan = 0;
 unsigned long wifiMgrWaitForConnectMs = 30000; // 30s
+#if defined(ESP32)
+// how long a latched ESP32 failure status must persist before waitForWifi()
+// treats it as final - see the comment in waitForWifi()
+#define WIFI_MGR_ESP32_FAIL_GRACE_MS 5000
+#endif
 unsigned long wifiMgrWaitForScanMs = 30000; // 30s
 unsigned long wifiMgrScanCount = 0;
 unsigned long wifiMgrConnectCount = 0;
 unsigned long wifiMgrInvalidRSSICount = 0;
 unsigned long wifiMgrInvalidIPCount = 0;
 unsigned long wifiMgrPostStartedServerCount = 0;
+volatile bool wifiMgrConnecting = false;
 uint8_t wifiMgrRebootAfterUnsuccessfullTries = 0;
 uint8_t wifiMgrUnsuccessfullTries = 0;
 // Set by the /wifiMgr/reconnect handler, executed by loopWifi():
@@ -52,16 +58,34 @@ XWebServer *wifiMgrServer = nullptr;
 
 boolean waitForWifi(unsigned long timeout) {
     unsigned long start = millis();
+#if defined(ESP32)
+    unsigned long failedSince = 0;
+#endif
     while ((millis() - start) < timeout) {
         wl_status_t s = WiFi.status();
         if (s == WL_CONNECTED) return true;
-        // terminal failures: no point waiting out the timeout
-        if (s == WL_CONNECT_FAILED || s == WL_NO_SSID_AVAIL) return false;
 #if defined(ESP8266)
-        if (s == WL_WRONG_PASSWORD) return false;
+        // WiFi.status() queries the live SDK station state and the SDK retries
+        // internally, so these are reported only once it has really given up:
+        // terminal failures, no point waiting out the timeout.
+        if (s == WL_CONNECT_FAILED || s == WL_NO_SSID_AVAIL || s == WL_WRONG_PASSWORD) return false;
+#elif defined(ESP32)
+        // WiFi.status() is a value latched by the last WiFi event, not a live
+        // query. A single transient STA_DISCONNECTED (reason 201 NO_AP_FOUND,
+        // 202 AUTH_FAIL, 203 ASSOC_FAIL) latches a failure while the attempt is
+        // still in flight - common right after a scan when connecting with an
+        // explicit channel + BSSID. Bailing out on the first one aborts a
+        // connect that would have succeeded, so only give up if it stays failed.
+        if (s == WL_CONNECT_FAILED || s == WL_NO_SSID_AVAIL) {
+            if (failedSince == 0) failedSince = millis();
+            else if ((millis() - failedSince) > WIFI_MGR_ESP32_FAIL_GRACE_MS) return false;
+        } else failedSince = 0;
 #endif
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
-        yield();
+        // delay() yields to the SDK on ESP8266 and feeds the idle/task WDT on
+        // ESP32, where yield() is a bare vPortYield() that never lets the
+        // priority-0 idle task run.
+        delay(1);
     }
     return WiFi.isConnected();
 }
@@ -70,7 +94,7 @@ void delayAndLoop(unsigned long delayMS) {
     unsigned long start = millis();
     while (millis() - start < delayMS) {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
-        yield();
+        delay(1);
     }
 }
 
@@ -78,7 +102,7 @@ void waitForDisconnect(unsigned long timeout) {
     unsigned long waitForConnectStart = millis();
     while (WiFi.status() == WL_CONNECTED && (millis() - waitForConnectStart) < timeout) {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
-        yield();
+        delay(1);
     }
 }
 
@@ -91,6 +115,8 @@ void wifiNotifyUnsuccessfullTry() {
 }
 
 void connectToWifi() {
+    if (wifiMgrConnecting) return;
+    wifiMgrConnecting = true;
     //if (wifiMgrServer != nullptr) wifiMgrServer->stop();
     //if (wifiMgrServer != nullptr) wifiMgrServer->close();
 #if WIFI_MGR_USE_MDNS
@@ -116,7 +142,7 @@ void connectToWifi() {
 
     while (WiFi.scanComplete() == -1 && (millis() - waitForScanStart) < wifiMgrWaitForScanMs) {
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
-        yield();
+        delay(1);
     }
     n = WiFi.scanComplete();
 
@@ -191,6 +217,8 @@ void connectToWifi() {
     }
     wifiMgrLastScan = millis();
     WiFi.scanDelete();
+
+    wifiMgrConnecting = false;
 }
 
 void setupWifi(const char* SSID, const char* password) {
