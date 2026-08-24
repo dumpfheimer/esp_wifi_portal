@@ -51,8 +51,15 @@ void (*wifiMgrNotifyNoWifiCallback)(void) = nullptr;
 XWebServer *wifiMgrServer = nullptr;
 
 boolean waitForWifi(unsigned long timeout) {
-    unsigned long waitForConnectStart = millis();
-    while (!WiFi.isConnected() && (millis() - waitForConnectStart) < timeout) {
+    unsigned long start = millis();
+    while ((millis() - start) < timeout) {
+        wl_status_t s = WiFi.status();
+        if (s == WL_CONNECTED) return true;
+        // terminal failures: no point waiting out the timeout
+        if (s == WL_CONNECT_FAILED || s == WL_NO_SSID_AVAIL) return false;
+#if defined(ESP8266)
+        if (s == WL_WRONG_PASSWORD) return false;
+#endif
         if (loopFunctionPointer != nullptr) loopFunctionPointer();
         yield();
     }
@@ -142,9 +149,9 @@ void connectToWifi() {
 
         if (bestRSSI != -999) {
             WiFi.begin(wifiMgrSSID, wifiMgrPW, bestChannel, bestBSSID);
-            uint8_t status = WiFi.waitForConnectResult();
+            bool connected = waitForWifi(wifiMgrWaitForConnectMs);
             wifiMgrConnectCount++;
-            if (status != WL_CONNECTED) {
+            if (!connected) {
                 WiFi.disconnect(true);
                 WiFi.mode(WIFI_OFF);
                 waitForDisconnect(3000);
