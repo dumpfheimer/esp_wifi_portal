@@ -42,8 +42,11 @@ uint8_t wifiMgrUnsuccessfullTries = 0;
 // crash the device.
 volatile bool wifiMgrReconnectRequested = false;
 
-#if defined(ESP32) && WIFI_MGR_USE_MDNS
+#if defined(ESP32)
+static bool wifiMgrServerStarted = false;
+#if WIFI_MGR_USE_MDNS
 static bool mdnsInitialized = false;
+#endif
 #endif
 
 int8_t badRSS = -70;
@@ -117,6 +120,7 @@ void wifiNotifyUnsuccessfullTry() {
 void connectToWifi() {
     if (wifiMgrConnecting) return;
     wifiMgrConnecting = true;
+    WIFI_MGR_LOG("connectToWifi() start, free heap %lu", (unsigned long)ESP.getFreeHeap());
     //if (wifiMgrServer != nullptr) wifiMgrServer->stop();
     //if (wifiMgrServer != nullptr) wifiMgrServer->close();
 #if WIFI_MGR_USE_MDNS
@@ -145,6 +149,7 @@ void connectToWifi() {
         delay(1);
     }
     n = WiFi.scanComplete();
+    WIFI_MGR_LOG("scan done: %d networks (looking for '%s')", n, wifiMgrSSID != nullptr ? wifiMgrSSID : "(null)");
 
     if (n > 0) {
         String ssid;
@@ -174,9 +179,14 @@ void connectToWifi() {
         }
 
         if (bestRSSI != -999) {
+            WIFI_MGR_LOG("connecting to %02x:%02x:%02x:%02x:%02x:%02x ch %ld rssi %ld, timeout %lums",
+                         bestBSSID[0], bestBSSID[1], bestBSSID[2], bestBSSID[3], bestBSSID[4], bestBSSID[5],
+                         (long)bestChannel, (long)bestRSSI, wifiMgrWaitForConnectMs);
             WiFi.begin(wifiMgrSSID, wifiMgrPW, bestChannel, bestBSSID);
             bool connected = waitForWifi(wifiMgrWaitForConnectMs);
             wifiMgrConnectCount++;
+            WIFI_MGR_LOG("connect result: %d, status %d, ip %s", connected ? 1 : 0,
+                         (int)WiFi.status(), WiFi.localIP().toString().c_str());
             if (!connected) {
                 WiFi.disconnect(true);
                 WiFi.mode(WIFI_OFF);
@@ -203,16 +213,27 @@ void connectToWifi() {
                 // status 0 means the server is closed - so not running (I think)
                 if (wifiMgrServer != nullptr && wifiMgrServer->getServer().status() == 0) wifiMgrServer->begin();
 #elif defined(ESP32)
-                wifiMgrServer->begin();
+                // wifiMgrServer is null when the app never called wifiMgrExpose()
+                // and the portal runs its own server - dereferencing it here
+                // crashed the device the moment a connect succeeded.
+                // WebServer::begin() also close()es and rebinds the listening
+                // socket, so only do it once instead of on every reconnect.
+                if (wifiMgrServer != nullptr && !wifiMgrServerStarted) {
+                    wifiMgrServer->begin();
+                    wifiMgrServerStarted = true;
+                    WIFI_MGR_LOG("web server started");
+                }
 #endif
                 wifiMgrLastNonShitRSS = millis();
                 wifiMgrInvalidRSSISince = 0;
                 wifiMgrInvalidIPSince = 0;
             }
         } else {
+            WIFI_MGR_LOG("configured SSID not found in scan results");
             wifiNotifyUnsuccessfullTry();
         }
     } else {
+        WIFI_MGR_LOG("scan returned no networks (%d)", n);
         wifiNotifyUnsuccessfullTry();
     }
     wifiMgrLastScan = millis();
@@ -495,6 +516,10 @@ void wifiMgrExpose(XWebServer *wifiMgrServer_) {
 
 XWebServer* wifiMgrGetWebServer() {
     return wifiMgrServer;
+}
+
+bool wifiMgrIsConnecting() {
+    return wifiMgrConnecting;
 }
 
 void wifiMgrSetBadRSSI(int8_t rssi) {

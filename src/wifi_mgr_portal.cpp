@@ -582,9 +582,16 @@ bool wifiMgrPortalLoop() {
         if (wifiMgrPortalWebServer != nullptr) wifiMgrPortalWebServer->handleClient();
         return true;
     } else if (!wifiMgrPortalStarted) {
+        // wifiMgrPortalSetup() -> setupWifi() -> connectToWifi() pumps the app's
+        // loop callback while it waits, which re-enters this function before
+        // wifiMgrPortalIsSetup has been set. Bringing the soft AP up now would
+        // switch the radio out of STA mode and kill the connect still in flight.
+        if (wifiMgrIsConnecting()) return false;
+
         String macAddress = WiFi.macAddress();
         macAddress.replace(":", "");
         macAddress = macAddress.substring(6, macAddress.length());
+        WIFI_MGR_LOG("starting config portal AP");
         WiFi.mode(WIFI_AP);
         WiFi.softAP((String(ssidPrefix != nullptr ? ssidPrefix : "") + macAddress).c_str(), password);
 

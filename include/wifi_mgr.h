@@ -41,6 +41,14 @@
 #error "This hardware is not supported"
 #endif
 
+// Define WIFI_MGR_DEBUG (in my_config.h, configuration.h or build_flags) to get
+// the connection state machine logged to Serial. Serial.begin() is the app's job.
+#if defined(WIFI_MGR_DEBUG)
+#define WIFI_MGR_LOG(fmt, ...) Serial.printf("[wifiMgr] " fmt "\n", ##__VA_ARGS__)
+#else
+#define WIFI_MGR_LOG(fmt, ...) do {} while (0)
+#endif
+
 void setupWifi(const char* SSID, const char* password);
 void setupWifi(const char* SSID, const char* password, const char* hostname);
 void setupWifi(const char* SSID, const char* password, const char* hostname, unsigned long tolerateBadRSSms, unsigned long waitForConnectMs);
@@ -48,6 +56,7 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 void loopWifi();
 void wifiMgrExpose(XWebServer *server_);
 XWebServer* wifiMgrGetWebServer();
+bool wifiMgrIsConnecting(); // true while connectToWifi() is in progress
 void wifiMgrSetRebootAfterUnsuccessfullTries(uint8_t _wifiMgrRebootAfterUnsuccessfullTries);
 void wifiMgrSetBadRSSI(int8_t rssi);
 void wifiMgrNotifyNoWifi(void (*wifiMgrNotifyNoWifiCallbackArg)(void), unsigned long timeout);
