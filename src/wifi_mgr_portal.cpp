@@ -529,7 +529,7 @@ void wifiMgrPortalSetup(bool redirectIndex, const char* ssidPrefix_, const char*
         }
         else setupWifi(ssid, pw, host);
 
-        wifiMgrPortalIsSetup = WiFi.isConnected();
+        wifiMgrPortalIsSetup = true;
     }
     wifiMgrPortalWebServer = wifiMgrGetWebServer();
     if (wifiMgrPortalWebServer == nullptr) {
