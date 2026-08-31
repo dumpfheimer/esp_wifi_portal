@@ -43,6 +43,12 @@ uint8_t wifiMgrUnsuccessfullTries = 0;
 // HTTP handler makes the web server re-enter itself mid-request, which can
 // crash the device.
 volatile bool wifiMgrReconnectRequested = false;
+// a connection only clears the failure counter after surviving 60s: a
+// connect-then-collapse loop (e.g. heap-starved reassociation) used to reset
+// the counter on every brief association, so the
+// rebootAfterUnsuccessfullTries escape hatch never fired
+unsigned long wifiMgrConnectedSince = 0;
+bool wifiMgrConnectionWasStable = false;
 
 #if defined(ESP32)
 static bool wifiMgrServerStarted = false;
@@ -148,6 +154,12 @@ void wifiNotifyUnsuccessfullTry() {
 void connectToWifi() {
     if (wifiMgrConnecting) return;
     wifiMgrConnecting = true;
+    // a previous connection that died before proving stable counts as a
+    // failed try - see wifiMgrConnectedSince
+    if (wifiMgrConnectedSince != 0 && !wifiMgrConnectionWasStable) {
+        wifiNotifyUnsuccessfullTry();
+    }
+    wifiMgrConnectedSince = 0;
     WIFI_MGR_LOG("connectToWifi() start, free heap %lu", (unsigned long)ESP.getFreeHeap());
     //if (wifiMgrServer != nullptr) wifiMgrServer->stop();
     //if (wifiMgrServer != nullptr) wifiMgrServer->close();
@@ -227,7 +239,8 @@ void connectToWifi() {
                 waitForDisconnect(3000);
                 wifiNotifyUnsuccessfullTry();
             } else {
-                wifiMgrUnsuccessfullTries = 0;
+                wifiMgrConnectedSince = millis();
+                wifiMgrConnectionWasStable = false;
 #if WIFI_MGR_USE_MDNS
                 if (wifiMgrHN != nullptr && strlen(wifiMgrHN) > 0) {
 #if defined(ESP8266)
@@ -360,6 +373,11 @@ void loopWifi() {
     if (WiFi.isConnected()) {
         if (millis() - wifiMgrlastConnected > 1000) {
             wifiMgrlastConnected = millis();
+
+            if (!wifiMgrConnectionWasStable && wifiMgrConnectedSince != 0 && (millis() - wifiMgrConnectedSince) > 60000) {
+                wifiMgrConnectionWasStable = true;
+                wifiMgrUnsuccessfullTries = 0;
+            }
 
             int8_t rss = WiFi.RSSI();
 
