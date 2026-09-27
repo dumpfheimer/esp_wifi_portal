@@ -66,82 +66,82 @@ void wifiMgrPortalSendConfigure() {
     }
     
     // Start building the HTML response with improved structure
-    String ret = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n";
-    ret += "  <meta charset=\"UTF-8\">\n";
-    ret += "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
-    ret += "  <title>WiFi Manager</title>\n";
-    ret += "  <link rel=\"stylesheet\" href=\"/wifiMgr/style.css\">\n";
-    ret += "</head>\n<body>\n";
-    ret += "  <div class=\"container\">\n";
-    ret += "    <h1>WiFi Manager</h1>\n";
+    String ret = F("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n");
+    ret += F("  <meta charset=\"UTF-8\">\n");
+    ret += F("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
+    ret += F("  <title>WiFi Manager</title>\n");
+    ret += F("  <link rel=\"stylesheet\" href=\"/wifiMgr/style.css\">\n");
+    ret += F("</head>\n<body>\n");
+    ret += F("  <div class=\"container\">\n");
+    ret += F("    <h1>WiFi Manager</h1>\n");
     
     // Add status messages if needed
     if (changes > 0 || needRestart || wifiMgrPortalConnectFailed || wifiMgrPortalCommitFailed) {
         if (changes > 0) {
-            ret += "    <div class=\"message success\">" + String(changes) + " changes made successfully.</div>\n";
+            ret += String(F("    <div class=\"message success\">")) + String(changes) + F(" changes made successfully.</div>\n");
         }
         if (needRestart) {
-            ret += "    <div class=\"message info\">Device will restart now.</div>\n";
+            ret += F("    <div class=\"message info\">Device will restart now.</div>\n");
         }
         if (wifiMgrPortalConnectFailed) {
-            ret += "    <div class=\"message error\">Failed to connect to WiFi. Please check your credentials.</div>\n";
+            ret += F("    <div class=\"message error\">Failed to connect to WiFi. Please check your credentials.</div>\n");
         }
         if (wifiMgrPortalCommitFailed) {
-            ret += "    <div class=\"message error\">Failed to save settings to EEPROM.</div>\n";
+            ret += F("    <div class=\"message error\">Failed to save settings to EEPROM.</div>\n");
         }
     }
     
     // Start the form
-    ret += "    <form action=\"#\" method=\"POST\" onsubmit=\"return validateForm(this)\">\n";
+    ret += F("    <form action=\"#\" method=\"POST\" onsubmit=\"return validateForm(this)\">\n");
     
     // Add form fields
     tmp = firstEntry;
     while (tmp != nullptr) {
-        ret += "      <div class=\"form-group\">\n";
-        ret += "        <h2>" + String(tmp->name) + "</h2>\n";
+        ret += F("      <div class=\"form-group\">\n");
+        ret += String(F("        <h2>")) + String(tmp->name) + F("</h2>\n");
         
         if (tmp->type == STRING) {
-            ret += "        <input type=\"" + String(tmp->isPassword ? "password" : "text") + "\" ";
-            ret += "name=\"" + String(tmp->eepromKey) + "\" ";
+            ret += String(F("        <input type=\"")) + String(tmp->isPassword ? "password" : "text") + F("\" ");
+            ret += String(F("name=\"")) + String(tmp->eepromKey) + F("\" ");
             if (!tmp->isPassword) {
-                ret += "value=\"" + String(wifiMgrGetConfig(tmp->eepromKey)) + "\" ";
+                ret += String(F("value=\"")) + String(wifiMgrGetConfig(tmp->eepromKey)) + F("\" ");
             }
             if (strcmp(tmp->eepromKey, "SSID") == 0) {
-                ret += "required ";
+                ret += F("required ");
             }
-            ret += ">\n";
+            ret += F(">\n");
         } else if (tmp->type == NUMBER) {
-            ret += "        <input type=\"number\" name=\"" + String(tmp->eepromKey) + "\" ";
+            ret += String(F("        <input type=\"number\" name=\"")) + String(tmp->eepromKey) + F("\" ");
             if (!tmp->isPassword) {
-                ret += "value=\"" + String(wifiMgrGetConfig(tmp->eepromKey)) + "\" ";
+                ret += String(F("value=\"")) + String(wifiMgrGetConfig(tmp->eepromKey)) + F("\" ");
             }
-            ret += ">\n";
+            ret += F(">\n");
         } else if (tmp->type == BOOL) {
-            ret += "        <select name=\"" + String(tmp->eepromKey) + "\">\n";
-            ret += "          <option value=\"1\"";
+            ret += String(F("        <select name=\"")) + String(tmp->eepromKey) + F("\">\n");
+            ret += F("          <option value=\"1\"");
             if (wifiMgrGetBoolConfig(tmp->eepromKey, false)) ret += " selected";
-            ret += ">Yes / On</option>\n";
-            ret += "          <option value=\"0\"";
+            ret += F(">Yes / On</option>\n");
+            ret += F("          <option value=\"0\"");
             if (!wifiMgrGetBoolConfig(tmp->eepromKey, true)) ret += " selected";
-            ret += ">No / Off</option>\n";
-            ret += "        </select>\n";
+            ret += F(">No / Off</option>\n");
+            ret += F("        </select>\n");
         }
         
-        ret += "      </div>\n";
+        ret += F("      </div>\n");
         tmp = tmp->next;
     }
     
     // Add submit button
-    ret += "      <input type=\"submit\" value=\"Save Settings\">\n";
-    ret += "    </form>\n";
-    ret += "  </div>\n";
+    ret += F("      <input type=\"submit\" value=\"Save Settings\">\n");
+    ret += F("    </form>\n");
+    ret += F("  </div>\n");
     
     // Add footer
-    ret += "  <footer>WiFi Manager Portal - ESP WiFi Configuration</footer>\n";
+    ret += F("  <footer>WiFi Manager Portal - ESP WiFi Configuration</footer>\n");
     
     // Add JavaScript
-    ret += "  <script src=\"/wifiMgr/script.js\"></script>\n";
-    ret += "</body>\n</html>";
+    ret += F("  <script src=\"/wifiMgr/script.js\"></script>\n");
+    ret += F("</body>\n</html>");
 
     if (wifiMgrPortalWebServer->method() == HTTP_POST) {
         if (isWifi) {
@@ -181,8 +181,7 @@ void wifiMgrPortalSendConfigure() {
 }
 
 // CSS content handler
-void handleCSS() {
-    String css = R"(
+static const char PORTAL_CSS[] PROGMEM = R"(
 /* WiFi Manager Portal Styles */
 :root {
   --primary-color: #2196F3;
@@ -332,12 +331,15 @@ footer {
   }
 }
 )";
-    wifiMgrPortalWebServer->send(200, "text/css", css);
+
+// Served straight from flash: this stylesheet is several KB and every byte of
+// it used to sit in RAM for the life of the firmware.
+void handleCSS() {
+    wifiMgrPortalWebServer->send_P(200, PSTR("text/css"), PORTAL_CSS);
 }
 
 // JavaScript content handler
-void handleJS() {
-    String js = R"(
+static const char PORTAL_JS[] PROGMEM = R"(
 // WiFi Manager Portal JavaScript
 document.addEventListener('DOMContentLoaded', function() {
   // Add form submission handling
@@ -494,7 +496,9 @@ function validateForm(form) {
   return isValid;
 }
 )";
-    wifiMgrPortalWebServer->send(200, "application/javascript", js);
+
+void handleJS() {
+    wifiMgrPortalWebServer->send_P(200, PSTR("application/javascript"), PORTAL_JS);
 }
 
 void wifiMgrPortalSetup(bool redirectIndex, const char* ssidPrefix_, const char* password_) {
