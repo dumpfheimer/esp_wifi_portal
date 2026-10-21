@@ -241,6 +241,20 @@ void connectToWifi() {
             } else {
                 wifiMgrConnectedSince = millis();
                 wifiMgrConnectionWasStable = false;
+                // setupWifi() disables modem sleep before the station ever
+                // associates, but on the ESP8266 NONOS SDK the sleep type can
+                // be re-applied when the station (re)connects. Power save
+                // being active again shows up as soft-WDT resets inside the
+                // SDK's keep-alive (pm_send_nullfunc), so re-assert it now
+                // that association completed and we have an IP.
+#if defined(ESP8266)
+                if (WiFi.getSleepMode() != WIFI_NONE_SLEEP) {
+                    WIFI_MGR_LOG("sleep mode was %d after connect, forcing WIFI_NONE_SLEEP", (int)WiFi.getSleepMode());
+                }
+                WiFi.setSleepMode(WIFI_NONE_SLEEP);
+#elif defined(ESP32)
+                WiFi.setSleep(false);
+#endif
 #if WIFI_MGR_USE_MDNS
                 if (wifiMgrHN != nullptr && strlen(wifiMgrHN) > 0) {
 #if defined(ESP8266)
@@ -320,6 +334,7 @@ void setupWifi(const char* SSID, const char* password, const char* hostname, uns
 
 #if defined(ESP8266)
     ESP8266WiFiClass::persistent(false);
+    // re-asserted after every successful association in connectToWifi()
     WiFi.setSleepMode(WIFI_NONE_SLEEP);
 #elif defined(ESP32)
     WiFi.persistent(false);
@@ -458,9 +473,10 @@ void status() {
     len += snprintf(buffer + len, sizeof(buffer) - len, "reconnects invalid RSSI: %lu\n", wifiMgrInvalidRSSICount);
     len += snprintf(buffer + len, sizeof(buffer) - len, "server restarts (post): %lu\n", wifiMgrPostStartedServerCount);
 #if defined(ESP8266)
-    len += snprintf(buffer + len, sizeof(buffer) - len, "heap fragmentation: %d", ESP.getHeapFragmentation());
+    len += snprintf(buffer + len, sizeof(buffer) - len, "heap fragmentation: %d\n", ESP.getHeapFragmentation());
+    // 0 = WIFI_NONE_SLEEP; anything else means modem power save is active
+    len += snprintf(buffer + len, sizeof(buffer) - len, "sleep mode: %d", (int)WiFi.getSleepMode());
 #endif
-;
     wifiMgrServer->send(200, "text/plain", buffer);
 }
 
