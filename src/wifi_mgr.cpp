@@ -1,6 +1,7 @@
 // PUBLISHED UNDER CC BY-NC 4.0 https://creativecommons.org/licenses/by-nc/4.0/
 
 #include "wifi_mgr.h"
+#include <stdarg.h>
 
 #if defined(ESP8266)
 #if WIFI_MGR_USE_MDNS
@@ -456,26 +457,43 @@ void bssid() {
     wifiMgrServer->send(200, "text/plain", WiFi.BSSIDstr());
 }
 
+// snprintf() returns the length it WOULD have written, so the usual
+// "len += snprintf(buf + len, sizeof(buf) - len, ...)" chain overruns the
+// buffer as soon as the content exceeds it: len passes the capacity and
+// sizeof(buf) - len underflows to ~4 billion for the next call, which then
+// writes past the end of a stack array. This helper truncates instead.
+static void appendf(char *buf, size_t cap, int &len, const char *fmt, ...) {
+    if (len < 0 || (size_t)len >= cap) return;          // already full
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf + len, cap - len, fmt, ap);
+    va_end(ap);
+    if (n < 0) return;
+    len += n;
+    if ((size_t)len > cap - 1) len = cap - 1;           // clamp on truncation
+}
+
 void status() {
     char buffer[500];
+    buffer[0] = '\0';
     int len = 0;
 
-    len += snprintf(buffer + len, sizeof(buffer) - len, "ssid: %s\n", WiFi.SSID().c_str());
-    len += snprintf(buffer + len, sizeof(buffer) - len, "connected: %d\n", WiFi.isConnected());
-    len += snprintf(buffer + len, sizeof(buffer) - len, "bssid: %s\n", WiFi.BSSIDstr().c_str());
-    len += snprintf(buffer + len, sizeof(buffer) - len, "rssi: %d\n", WiFi.RSSI());
-    len += snprintf(buffer + len, sizeof(buffer) - len, "uptime: %lus\n", millis()/1000);
-    len += snprintf(buffer + len, sizeof(buffer) - len, "last scan: %lus\n", (millis() - wifiMgrLastScan)/1000);
-    len += snprintf(buffer + len, sizeof(buffer) - len, "scanned: %lu times\n", wifiMgrScanCount);
-    len += snprintf(buffer + len, sizeof(buffer) - len, "connected: %lu times\n\n", wifiMgrConnectCount);
-    len += snprintf(buffer + len, sizeof(buffer) - len, "free heap: %du\n", ESP.getFreeHeap());
-    len += snprintf(buffer + len, sizeof(buffer) - len, "reconnects invalid IP: %lu\n", wifiMgrInvalidIPCount);
-    len += snprintf(buffer + len, sizeof(buffer) - len, "reconnects invalid RSSI: %lu\n", wifiMgrInvalidRSSICount);
-    len += snprintf(buffer + len, sizeof(buffer) - len, "server restarts (post): %lu\n", wifiMgrPostStartedServerCount);
+    appendf(buffer, sizeof(buffer), len, "ssid: %s\n", WiFi.SSID().c_str());
+    appendf(buffer, sizeof(buffer), len, "connected: %d\n", WiFi.isConnected());
+    appendf(buffer, sizeof(buffer), len, "bssid: %s\n", WiFi.BSSIDstr().c_str());
+    appendf(buffer, sizeof(buffer), len, "rssi: %d\n", WiFi.RSSI());
+    appendf(buffer, sizeof(buffer), len, "uptime: %lus\n", millis()/1000);
+    appendf(buffer, sizeof(buffer), len, "last scan: %lus\n", (millis() - wifiMgrLastScan)/1000);
+    appendf(buffer, sizeof(buffer), len, "scanned: %lu times\n", wifiMgrScanCount);
+    appendf(buffer, sizeof(buffer), len, "connected: %lu times\n\n", wifiMgrConnectCount);
+    appendf(buffer, sizeof(buffer), len, "free heap: %du\n", ESP.getFreeHeap());
+    appendf(buffer, sizeof(buffer), len, "reconnects invalid IP: %lu\n", wifiMgrInvalidIPCount);
+    appendf(buffer, sizeof(buffer), len, "reconnects invalid RSSI: %lu\n", wifiMgrInvalidRSSICount);
+    appendf(buffer, sizeof(buffer), len, "server restarts (post): %lu\n", wifiMgrPostStartedServerCount);
 #if defined(ESP8266)
-    len += snprintf(buffer + len, sizeof(buffer) - len, "heap fragmentation: %d\n", ESP.getHeapFragmentation());
+    appendf(buffer, sizeof(buffer), len, "heap fragmentation: %d\n", ESP.getHeapFragmentation());
     // 0 = WIFI_NONE_SLEEP; anything else means modem power save is active
-    len += snprintf(buffer + len, sizeof(buffer) - len, "sleep mode: %d", (int)WiFi.getSleepMode());
+    appendf(buffer, sizeof(buffer), len, "sleep mode: %d", (int)WiFi.getSleepMode());
 #endif
     wifiMgrServer->send(200, "text/plain", buffer);
 }
